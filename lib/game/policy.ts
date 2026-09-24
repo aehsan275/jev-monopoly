@@ -1,4 +1,4 @@
-import type { AgentDecision, AgentId, ArenaScenario, LegalAction } from "./types";
+import type { AgentDecision, AgentId, ArenaScenario, LegalAction } from "./types.ts";
 
 export const AGENTS: Record<AgentId, { name: string; role: string; color: string; description: string }> = {
   builder: {

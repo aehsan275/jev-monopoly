@@ -1,4 +1,4 @@
-import type { AgentDecision, AgentId, ArenaScenario, PublicGameState } from "./types";
+import type { AgentDecision, AgentId, ArenaScenario, PublicGameState } from "./types.ts";
 
 const agentFactors: Record<AgentId, string[]> = {
   builder: ["Set completion", "Rent acceleration"],

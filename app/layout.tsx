@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "UW Monopoly · JEV Arena",
+  title: "UW Monopoly · Play the JEV Agents",
   description:
-    "Four JEV strategies enter the same Waterloo-themed game state. One combined champion makes the call.",
+    "Play a rules-driven Waterloo-themed property trading game against the experimental JEV Champion and specialist agents.",
   other: {
     "codex-preview": "development",
   },

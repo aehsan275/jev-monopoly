@@ -1,4 +1,4 @@
-import type { BoardSpace } from "./types";
+import type { BoardSpace } from "./types.ts";
 
 export const BOARD: BoardSpace[] = [
   { index: 0, name: "Start of Term", shortName: "START", kind: "corner" },

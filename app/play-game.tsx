@@ -1,0 +1,376 @@
+"use client";
+
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import Link from "next/link";
+import {
+  Activity, ArrowRight, Bot, BrainCircuit, Building2, ChevronDown,
+  Clock3, Dice5, Eye, History, KeyRound, Landmark, LoaderCircle, RotateCcw,
+  Scale, ShieldAlert, Sparkles, Trophy, Users, WalletCards, X,
+} from "lucide-react";
+import { BOARD, GROUP_COLORS, gridPosition } from "@/lib/game/board";
+import { TITLE_DEEDS, deedFor } from "@/lib/monopoly/data";
+import { applyAction, assertStateIntegrity, createGame, currentPlayer, isLegalAction, netWorth, stateHash } from "@/lib/monopoly/engine";
+import { generateLegalPlans } from "@/lib/monopoly/plans";
+import { blendWithLiveJev, chooseLocalPlan } from "@/lib/monopoly/policy-model";
+import { buildPublicDecisionState } from "@/lib/monopoly/public-state";
+import type { DecisionRecord, GameAction, GameState, LegalPlan, PlayerSpec, PolicyId, TradeOffer } from "@/lib/monopoly/types";
+
+const SAVE_KEY = "uw-monopoly-game-v1";
+const ARCHIVE_KEY = "uw-monopoly-incompatible-saves";
+const playerColors: Record<string, string> = {
+  human: "#f5f3e9", champion: "#f4c430", specialist1: "#ef6f45", specialist2: "#4cb6ab",
+};
+const specialistOptions: Array<{ id: Exclude<PolicyId, "human" | "champion">; label: string; note: string }> = [
+  { id: "builder", label: "Builder", note: "Completes sets and develops rent pressure." },
+  { id: "risk", label: "Risk Manager", note: "Protects liquidity and recovery options." },
+  { id: "dealmaker", label: "Dealmaker", note: "Values leverage, denial, and exchanges." },
+  { id: "balanced", label: "Opportunist", note: "Chases the strongest overall win contribution." },
+];
+
+interface LivePlanResponse {
+  planId: string;
+  probabilities: Record<string, number>;
+  confidence: number;
+  latencyMs: number;
+  specialistProbabilities?: DecisionRecord["specialistProbabilities"];
+  error?: string;
+}
+
+interface LastDecision {
+  actorId: string;
+  actorName: string;
+  plan: LegalPlan;
+  record: DecisionRecord;
+  note: string;
+}
+
+function decisionActor(state: GameState) {
+  if (state.phase === "auction") return state.auction?.currentBidderId ?? currentPlayer(state).id;
+  if (state.phase === "trade-response") return state.pendingTrade?.toId ?? currentPlayer(state).id;
+  if (state.phase === "debt") return state.pendingDebt?.debtorId ?? currentPlayer(state).id;
+  return currentPlayer(state).id;
+}
+
+function phaseLabel(state: GameState) {
+  if (state.phase === "pre-roll") return currentPlayer(state).inJail ? "Jail decision" : "Ready to roll";
+  if (state.phase === "purchase") return "Property purchase";
+  if (state.phase === "auction") return `Auction · $${state.auction?.highBid ?? 0}`;
+  if (state.phase === "debt") return `Debt · $${state.pendingDebt?.amount ?? 0}`;
+  if (state.phase === "trade-response") return "Trade response";
+  if (state.phase === "game-over") return "Final standings";
+  return state.extraRoll ? "Extra roll available" : "Manage assets";
+}
+
+function eventText(event: GameState["events"][number]) {
+  if (event.type === "game-created") return `Game created · ${String(event.payload.mode)} mode`;
+  if (event.type === "draw-card") return `${String(event.payload.label)}`;
+  if (event.type === "roll") return "Rolled the dice";
+  if (event.type === "buy-property") return "Bought the landed property";
+  if (event.type === "decline-property") return "Opened a mandatory auction";
+  if (event.type === "auction-bid") return `Bid $${String(event.payload.amount)}`;
+  if (event.type === "auction-pass") return "Passed in the auction";
+  if (event.type === "build") return `Built on ${deedFor(Number(event.payload.spaceIndex)).name}`;
+  if (event.type === "sell-building") return `Sold a building on ${deedFor(Number(event.payload.spaceIndex)).name}`;
+  if (event.type === "mortgage") return `Mortgaged ${deedFor(Number(event.payload.spaceIndex)).name}`;
+  if (event.type === "unmortgage") return `Unmortgaged ${deedFor(Number(event.payload.spaceIndex)).name}`;
+  if (event.type === "propose-trade") return "Proposed a structured trade";
+  if (event.type === "accept-trade") return "Accepted the trade";
+  if (event.type === "reject-trade") return "Rejected the trade";
+  if (event.type === "declare-bankruptcy") return "Declared bankruptcy";
+  if (event.type === "pay-jail") return "Paid the jail release fee";
+  return event.type.replaceAll("-", " ");
+}
+
+function SpaceTile({ state, index }: { state: GameState; index: number }) {
+  const space = BOARD[index];
+  const position = gridPosition(index);
+  const deed = state.deeds[index];
+  const occupants = state.players.filter((player) => !player.bankrupt && player.position === index);
+  return <div
+    className={`board-space board-space--${space.kind} ${space.kind === "corner" ? "board-space--corner" : ""}`}
+    style={{ gridRow: position.row, gridColumn: position.column } as CSSProperties}
+    title={`${space.index}. ${space.name}${space.price ? ` · $${space.price}` : ""}`}
+  >
+    {space.group ? <span className="property-band" style={{ background: GROUP_COLORS[space.group] }} /> : null}
+    <span className="space-index">{String(index).padStart(2, "0")}</span>
+    <span className="space-name">{space.shortName}</span>
+    {space.price ? <span className="space-price">${space.price}</span> : null}
+    {deed?.mortgaged ? <span className="deed-state">M</span> : deed?.buildings ? <span className="deed-state">{deed.buildings === 5 ? "HOTEL" : `H${deed.buildings}`}</span> : null}
+    {deed?.ownerId ? <span className="owner-pip" style={{ background: playerColors[deed.ownerId] ?? "#111" }} /> : null}
+    {occupants.length ? <span className="token-stack" aria-label={`${occupants.map((player) => player.name).join(", ")} on ${space.name}`}>
+      {occupants.map((player) => <span key={player.id} className="player-token" style={{ background: playerColors[player.id] ?? "#111" }}>{player.token}</span>)}
+    </span> : null}
+  </div>;
+}
+
+export function GameBoard({ state }: { state: GameState }) {
+  const actor = state.players.find((player) => player.id === decisionActor(state));
+  return <section className="board-frame game-board" aria-label="Waterloo Monopoly board">
+    <div className="board-grid">
+      {BOARD.map((space) => <SpaceTile key={space.index} state={state} index={space.index} />)}
+      <div className="board-center game-board-center">
+        <div className="board-watermark" aria-hidden="true">W</div>
+        <p className="overline">{state.mode === "short" ? "Official short game" : "Classic game"} · round {state.round}</p>
+        <h1>Waterloo<br /><span>Monopoly</span></h1>
+        <div className="live-turn">
+          <span style={{ background: playerColors[actor?.id ?? ""] }}>{actor?.token}</span>
+          <div><small>{actor?.name}</small><strong>{phaseLabel(state)}</strong></div>
+        </div>
+        {state.lastRoll ? <div className="dice-readout" aria-label={`Last roll ${state.lastRoll[0]} and ${state.lastRoll[1]}`}><Dice5 size={15} /> {state.lastRoll[0]} + {state.lastRoll[1]}</div> : null}
+        <div className="bank-supply"><span>{state.bank.houses} houses</span><span>{state.bank.hotels} hotels</span></div>
+      </div>
+    </div>
+  </section>;
+}
+
+function SetupScreen({ onStart, resumed, onResume }: { onStart: (options: { mode: "classic" | "short"; name: string; policies: [PolicyId, PolicyId]; telemetry: boolean; apiKey: string }) => void; resumed: GameState | null; onResume: () => void }) {
+  const [mode, setMode] = useState<"classic" | "short">("short");
+  const [name, setName] = useState("You");
+  const [first, setFirst] = useState<PolicyId>("builder");
+  const [second, setSecond] = useState<PolicyId>("dealmaker");
+  const [telemetry, setTelemetry] = useState(true);
+  const [apiKey, setApiKey] = useState(() => typeof window === "undefined" ? "" : window.sessionStorage.getItem("jev-api-key") ?? "");
+  const distinctSecond = second === first ? specialistOptions.find((option) => option.id !== first)!.id : second;
+
+  return <main className="game-shell setup-shell">
+    <header className="game-topbar">
+      <Link className="brand-lockup" href="/"><span className="brand-mark">J</span><span><strong>JEV / MONOPOLY</strong><small>WATERLOO STRATEGY LAB</small></span></Link>
+      <nav><a href="/arena">Decision arena</a><a href="/benchmarks">Benchmarks</a><a href="/privacy">Privacy</a></nav>
+    </header>
+    <div className="mobile-gate"><ShieldAlert size={30} /><h1>Use a larger screen to play</h1><p>The complete board and asset controls require a tablet or desktop. Benchmarks and replays remain available on your phone.</p><a href="/benchmarks">View agent benchmarks <ArrowRight size={15} /></a></div>
+    <section className="setup-grid game-desktop">
+      <div className="setup-intro"><span className="overline">PLAY THE AGENTS</span><h1>One table.<br />Four strategies.</h1><p>You face the experimental Champion and two specialist policies under real classic economics. The rules engine—not the model—controls every legal move.</p>
+        <div className="rule-chips"><span>Mandatory auctions</span><span>Finite buildings</span><span>Jail & mortgages</span><span>Structured trades</span></div>
+        <a className="quiet-link" href="/arena"><BrainCircuit size={16} /> Open the six-decision arena</a>
+      </div>
+      <form className="setup-panel" onSubmit={(event) => { event.preventDefault(); onStart({ mode, name: name.trim() || "You", policies: [first, distinctSecond], telemetry, apiKey: apiKey.trim() }); }}>
+        {resumed ? <button type="button" className="resume-card" onClick={onResume}><RotateCcw size={19} /><span><strong>Resume round {resumed.round}</strong><small>{resumed.mode === "short" ? "Short Game" : "Classic"} · {resumed.events.length} recorded events</small></span><ArrowRight size={18} /></button> : null}
+        <fieldset><legend>Game format</legend><div className="mode-cards">
+          <label className={mode === "short" ? "selected" : ""}><input type="radio" checked={mode === "short"} onChange={() => setMode("short")} /><Clock3 /><span><strong>Short Game</strong><small>First bankruptcy ends the match; net worth decides. Best first game.</small></span></label>
+          <label className={mode === "classic" ? "selected" : ""}><input type="radio" checked={mode === "classic"} onChange={() => setMode("classic")} /><Landmark /><span><strong>Classic</strong><small>Continue until only one player remains solvent.</small></span></label>
+        </div></fieldset>
+        <label className="field-label">Your name<input value={name} maxLength={32} onChange={(event) => setName(event.target.value)} /></label>
+        <fieldset><legend>Choose two opponents</legend><div className="opponent-selects">
+          {[{ value: first, set: setFirst }, { value: distinctSecond, set: setSecond }].map((selector, index) => <label key={index}><span>Specialist {index + 1}</span><select value={selector.value} onChange={(event) => selector.set(event.target.value as PolicyId)}>{specialistOptions.filter((option) => index === 0 || option.id !== first).map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}</select><ChevronDown size={16} /></label>)}
+        </div></fieldset>
+        <label className="field-label"><span>JevAI key <em>optional</em></span><div className="key-field"><KeyRound size={16} /><input type="password" autoComplete="off" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="Local trained policy is always available" /></div><small>A classic match may make hundreds of decisions. Live calls use an 8-second timeout and fall back locally without retrying.</small></label>
+        <label className="check-row"><input type="checkbox" checked={telemetry} onChange={(event) => setTelemetry(event.target.checked)} /><span><strong>Share anonymous match events</strong><small>No key, account, stable device identifier, fingerprint, or free-form text.</small></span></label>
+        <button className="start-button" type="submit"><Sparkles size={18} /> Start game <ArrowRight size={18} /></button>
+        <p className="experimental-note"><ShieldAlert size={14} /> Agent is experimental until it passes the published promotion gate.</p>
+      </form>
+    </section>
+  </main>;
+}
+
+function Standings({ state }: { state: GameState }) {
+  const ranked = [...state.players].sort((a, b) => Number(a.bankrupt) - Number(b.bankrupt) || netWorth(state, b.id) - netWorth(state, a.id));
+  return <section className="game-card standings-card"><div className="card-title"><Trophy size={16} /><span>Standings</span></div>{ranked.map((player, index) => <div className={`standing ${player.bankrupt ? "is-bankrupt" : ""}`} key={player.id}><span className="rank">{index + 1}</span><span className="standing-token" style={{ background: playerColors[player.id] }}>{player.token}</span><span><strong>{player.name}</strong><small>{player.inJail ? "In jail · " : ""}{player.properties.length} deeds</small></span><span><strong>${player.cash}</strong><small>${netWorth(state, player.id)} worth</small></span></div>)}</section>;
+}
+
+function PropertyManager({ state, onAction }: { state: GameState; onAction: (action: GameAction) => void }) {
+  const human = state.players.find((player) => player.id === "human")!;
+  return <section className="game-card property-card"><div className="card-title"><Building2 size={16} /><span>Your deeds</span><em>{human.properties.length}</em></div>
+    {!human.properties.length ? <p className="empty-copy">Properties you buy appear here with mortgage and building controls.</p> : <div className="deed-list">{human.properties.map((index) => {
+      const deed = TITLE_DEEDS[index]; const status = state.deeds[index];
+      const controls: Array<{ label: string; action: GameAction }> = [
+        { label: "Build", action: { type: "build", spaceIndex: index } },
+        { label: "Sell", action: { type: "sell-building", spaceIndex: index } },
+        { label: status.mortgaged ? "Unmortgage" : "Mortgage", action: status.mortgaged ? { type: "unmortgage", spaceIndex: index } : { type: "mortgage", spaceIndex: index } },
+      ];
+      return <div className="deed-row" key={index}><i style={{ background: deed.group ? GROUP_COLORS[deed.group] : "#82877e" }} /><span><strong>{deed.name}</strong><small>{status.mortgaged ? `Mortgaged · $${deed.mortgage}` : status.buildings === 5 ? "Hotel" : status.buildings ? `${status.buildings} house${status.buildings > 1 ? "s" : ""}` : deed.kind}</small></span><div>{controls.map(({ label, action }) => <button type="button" key={label} disabled={!isLegalAction(state, "human", action)} onClick={() => onAction(action)}>{label}</button>)}</div></div>;
+    })}</div>}
+  </section>;
+}
+
+function TradeBuilder({ state, onAction, onClose }: { state: GameState; onAction: (action: GameAction) => void; onClose: () => void }) {
+  const human = state.players.find((player) => player.id === "human")!;
+  const opponents = state.players.filter((player) => player.id !== "human" && !player.bankrupt);
+  const [targetId, setTargetId] = useState(opponents[0]?.id ?? "");
+  const target = state.players.find((player) => player.id === targetId) ?? opponents[0];
+  const [giveCash, setGiveCash] = useState(0); const [askCash, setAskCash] = useState(0);
+  const [giveProperties, setGiveProperties] = useState<number[]>([]); const [askProperties, setAskProperties] = useState<number[]>([]);
+  const [giveCards, setGiveCards] = useState<Array<"chance" | "community">>([]); const [askCards, setAskCards] = useState<Array<"chance" | "community">>([]);
+  const toggle = <T,>(list: T[], item: T, setter: (value: T[]) => void) => setter(list.includes(item) ? list.filter((value) => value !== item) : [...list, item]);
+  function submit() {
+    if (!target) return;
+    const offer: TradeOffer = { id: `trade-human-${target.id}-${state.events.length}`, fromId: "human", toId: target.id, offer: { cash: giveCash, properties: giveProperties, getOutCards: giveCards }, request: { cash: askCash, properties: askProperties, getOutCards: askCards }, counterDepth: 0 };
+    onAction({ type: "propose-trade", offer });
+  }
+  return <div className="sheet-backdrop" role="presentation"><section className="trade-sheet" role="dialog" aria-modal="true" aria-label="Build a trade"><header><div><span className="overline">STRUCTURED NEGOTIATION</span><h2>Build a trade</h2></div><button type="button" onClick={onClose} aria-label="Close trade builder"><X /></button></header>
+    <label className="field-label">Trade with<select value={target?.id} onChange={(event) => { setTargetId(event.target.value); setAskProperties([]); setAskCards([]); }}>{opponents.map((player) => <option value={player.id} key={player.id}>{player.name}</option>)}</select></label>
+    <div className="trade-columns"><div><h3>You give</h3><label className="field-label">Cash<input type="number" min={0} max={human.cash} value={giveCash} onChange={(event) => setGiveCash(Math.max(0, Number(event.target.value)))} /></label><AssetChecks title="Deeds" indexes={human.properties} selected={giveProperties} onToggle={(index) => toggle(giveProperties, index, setGiveProperties)} /><CardChecks cards={human.getOutCards} selected={giveCards} onToggle={(card) => toggle(giveCards, card, setGiveCards)} /></div>
+      <div><h3>You receive</h3><label className="field-label">Cash<input type="number" min={0} max={target?.cash ?? 0} value={askCash} onChange={(event) => setAskCash(Math.max(0, Number(event.target.value)))} /></label><AssetChecks title="Deeds" indexes={target?.properties ?? []} selected={askProperties} onToggle={(index) => toggle(askProperties, index, setAskProperties)} /><CardChecks cards={target?.getOutCards ?? []} selected={askCards} onToggle={(card) => toggle(askCards, card, setAskCards)} /></div></div>
+    <button className="start-button" type="button" onClick={submit}>Send offer <ArrowRight size={17} /></button><p className="experimental-note">Improved color groups cannot be traded. Mortgaged deeds charge the recipient 10% interest immediately.</p>
+  </section></div>;
+}
+
+function AssetChecks({ title, indexes, selected, onToggle }: { title: string; indexes: number[]; selected: number[]; onToggle: (index: number) => void }) {
+  return <fieldset className="asset-checks"><legend>{title}</legend>{indexes.length ? indexes.map((index) => <label key={index}><input type="checkbox" checked={selected.includes(index)} onChange={() => onToggle(index)} /><span>{deedFor(index).name}</span></label>) : <small>None available</small>}</fieldset>;
+}
+
+function CardChecks({ cards, selected, onToggle }: { cards: Array<"chance" | "community">; selected: Array<"chance" | "community">; onToggle: (card: "chance" | "community") => void }) {
+  return <fieldset className="asset-checks"><legend>Amnesty cards</legend>{cards.length ? cards.map((card) => <label key={card}><input type="checkbox" checked={selected.includes(card)} onChange={() => onToggle(card)} /><span>{card} card</span></label>) : <small>None available</small>}</fieldset>;
+}
+
+function DecisionPanel({ state, plans, thinking, lastDecision, onPlan, onOpenTrade, onShare, shareUrl, shareStatus }: { state: GameState; plans: LegalPlan[]; thinking: boolean; lastDecision: LastDecision | null; onPlan: (plan: LegalPlan) => void; onOpenTrade: () => void; onShare: () => void; shareUrl: string; shareStatus: string }) {
+  const actorId = decisionActor(state); const actor = state.players.find((player) => player.id === actorId)!;
+  const humanDecision = actorId === "human" && state.phase !== "game-over";
+  return <section className="game-card decision-card"><div className="decision-head"><span className="overline">{humanDecision ? "YOUR DECISION" : thinking ? "AGENT THINKING" : "TABLE STATUS"}</span><h2>{state.phase === "game-over" ? `${state.players.find((player) => player.id === state.winnerId)?.name} wins` : phaseLabel(state)}</h2><p>{state.phase === "debt" ? `${actor.name} must raise $${state.pendingDebt?.amount}.` : state.phase === "auction" ? `${actor.name} acts next. High bid: $${state.auction?.highBid}.` : `${actor.name} acts now.`}</p></div>
+    {thinking ? <div className="thinking-line"><LoaderCircle className="spin" /><span><strong>{actor.name} is choosing</strong><small>Every option was generated and validated by the rules engine.</small></span></div> : null}
+    {humanDecision ? <div className="plan-stack">{plans.map((plan) => <button type="button" key={plan.id} onClick={() => onPlan(plan)}><span><strong>{plan.label}</strong><small>{plan.description}</small></span><ArrowRight size={17} /></button>)}{state.phase === "manage" ? <button type="button" onClick={onOpenTrade}><span><strong>Build a custom trade</strong><small>Exchange cash, deeds, or amnesty cards with an opponent.</small></span><Users size={17} /></button> : null}</div> : null}
+    {state.phase === "game-over" ? <div className="winner-card"><Trophy /><strong>Winner: {state.players.find((player) => player.id === state.winnerId)?.name}</strong><span>Seed {state.seed} · {state.events.length} deterministic events</span>{shareUrl ? <a href={shareUrl}>Open shared replay <ArrowRight size={14} /></a> : <button type="button" onClick={onShare} disabled={shareStatus === "sharing"}>{shareStatus === "sharing" ? "Creating replay…" : "Share 30-day replay"}</button>}{shareStatus && shareStatus !== "sharing" && !shareUrl ? <small>{shareStatus}</small> : null}</div> : null}
+    {lastDecision ? <details className="explain-drawer"><summary><Eye size={15} /> Last agent explanation</summary><div><strong>{lastDecision.actorName}: {lastDecision.plan.label}</strong><p>{lastDecision.note}</p><div className="probability-list">{Object.entries(lastDecision.record.probabilities).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([id, value]) => <div className="probability-row" key={id}><span>{id.split(":")[0]}</span><span className="probability-track"><i style={{ width: `${Math.round(value * 100)}%` }} /></span><strong>{Math.round(value * 100)}%</strong></div>)}</div></div></details> : null}
+  </section>;
+}
+
+export default function PlayGame() {
+  const [game, setGame] = useState<GameState | null>(null);
+  const [savedGame, setSavedGame] = useState<GameState | null>(null);
+  const [hydrated, setHydrated] = useState(false);
+  const [thinking, setThinking] = useState(false);
+  const [apiKey, setApiKey] = useState(() => typeof window === "undefined" ? "" : window.sessionStorage.getItem("jev-api-key") ?? "");
+  const [lastDecision, setLastDecision] = useState<LastDecision | null>(null);
+  const [error, setError] = useState("");
+  const [tradeOpen, setTradeOpen] = useState(false);
+  const [shareUrl, setShareUrl] = useState("");
+  const [shareStatus, setShareStatus] = useState("");
+  useEffect(() => {
+    queueMicrotask(() => {
+      const serialized = window.localStorage.getItem(SAVE_KEY);
+      if (serialized) {
+        try {
+          const parsed = JSON.parse(serialized) as GameState;
+          assertStateIntegrity(parsed);
+          setSavedGame(parsed);
+        } catch {
+          const archives = JSON.parse(window.localStorage.getItem(ARCHIVE_KEY) ?? "[]") as unknown[];
+          archives.push({ archivedAt: Date.now(), serialized });
+          window.localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archives.slice(-3)));
+          window.localStorage.removeItem(SAVE_KEY);
+        }
+      }
+      setHydrated(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!game) return;
+    window.localStorage.setItem(SAVE_KEY, JSON.stringify(game));
+  }, [game]);
+
+  useEffect(() => {
+    if (!game || game.phase !== "game-over" || !game.telemetryEnabled) return;
+    const marker = `uw-monopoly-telemetry-${game.id}-${game.events.length}`;
+    if (window.localStorage.getItem(marker)) return;
+    window.localStorage.setItem(marker, "pending");
+    void fetch("/api/replays", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state: game, share: false }) })
+      .then((response) => { if (!response.ok) throw new Error("upload failed"); window.localStorage.setItem(marker, "stored"); })
+      .catch(() => window.localStorage.removeItem(marker));
+  }, [game]);
+
+  const actorId = game ? decisionActor(game) : "";
+  const plans = useMemo(() => game && game.phase !== "game-over" ? generateLegalPlans(game, actorId) : [], [game, actorId]);
+
+  useEffect(() => {
+    if (!game || game.phase === "game-over") return;
+    const actor = game.players.find((player) => player.id === decisionActor(game));
+    if (!actor || actor.kind !== "ai") return;
+    const captured = game;
+    const capturedHash = stateHash(captured);
+    const candidates = generateLegalPlans(captured, actor.id);
+    if (!candidates.length) { queueMicrotask(() => setError(`No legal plan exists for ${actor.name}.`)); return; }
+    queueMicrotask(() => setThinking(true));
+    const timer = window.setTimeout(async () => {
+      let record = chooseLocalPlan(captured, actor.id, candidates, actor.policy);
+      let note = "Chosen by the trained local policy. This policy remains available if the live service is unavailable.";
+      let usedLive = false;
+      if (apiKey) {
+        try {
+          const response = await fetch("/api/jev/turn-plan", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-jev-api-key": apiKey },
+            body: JSON.stringify({
+              rulesVersion: captured.rulesVersion,
+              policyId: actor.policy,
+              decisionType: candidates[0].family,
+              publicState: buildPublicDecisionState(captured, actor.id, candidates),
+              legalPlans: candidates.map(({ id, label, description }) => ({ id, label, description })),
+            }),
+          });
+          const live = await response.json() as LivePlanResponse;
+          if (!response.ok || live.error) throw new Error(live.error || "Live decision failed.");
+          if (Object.keys(live.probabilities).some((id) => !candidates.some((plan) => plan.id === id))) throw new Error("JEV returned a stale plan.");
+          record = { ...blendWithLiveJev(record, live.probabilities, candidates[0].family), latencyMs: live.latencyMs, specialistProbabilities: live.specialistProbabilities };
+          note = `Live JEV probabilities were calibrated with the local policy in ${live.latencyMs} ms.`;
+          usedLive = true;
+        } catch (reason) {
+          note = `Local fallback used immediately: ${reason instanceof Error ? reason.message : "live decision unavailable"}`;
+        }
+      }
+      const selected = candidates.find((plan) => plan.id === record.planId) ?? candidates[0];
+      setGame((current) => {
+        if (!current || stateHash(current) !== capturedHash) return current;
+        try {
+          const next = selected.actions.reduce((state, action) => applyAction(state, actor.id, action), current);
+          if (usedLive) next.jevCalls += 1;
+          else next.fallbackDecisions += 1;
+          return next;
+        } catch (reason) {
+          setError(reason instanceof Error ? reason.message : "The agent decision could not be applied.");
+          return current;
+        }
+      });
+      setLastDecision({ actorId: actor.id, actorName: actor.name, plan: selected, record, note });
+      setThinking(false);
+    }, 420);
+    return () => window.clearTimeout(timer);
+  }, [game, apiKey]);
+
+  function start(options: { mode: "classic" | "short"; name: string; policies: [PolicyId, PolicyId]; telemetry: boolean; apiKey: string }) {
+    const specs: PlayerSpec[] = [
+      { id: "human", name: options.name, token: "H", kind: "human", policy: "human" },
+      { id: "champion", name: "Champion", token: "π", kind: "ai", policy: "champion" },
+      { id: "specialist1", name: specialistOptions.find((option) => option.id === options.policies[0])?.label ?? "Builder", token: "▲", kind: "ai", policy: options.policies[0] },
+      { id: "specialist2", name: specialistOptions.find((option) => option.id === options.policies[1])?.label ?? "Dealmaker", token: "◆", kind: "ai", policy: options.policies[1] },
+    ];
+    const seed = crypto.getRandomValues(new Uint32Array(1))[0] || 1;
+    if (options.apiKey) window.sessionStorage.setItem("jev-api-key", options.apiKey); else window.sessionStorage.removeItem("jev-api-key");
+    setApiKey(options.apiKey); setError(""); setLastDecision(null); setGame(createGame({ seed, mode: options.mode, players: specs, telemetryEnabled: options.telemetry }));
+  }
+
+  function applyHumanAction(action: GameAction) {
+    if (!game) return;
+    try { setError(""); setGame(applyAction(game, "human", action)); setTradeOpen(false); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "That action is not legal now."); }
+  }
+  function applyHumanPlan(plan: LegalPlan) {
+    if (!game) return;
+    try { setError(""); setGame(plan.actions.reduce((state, action) => applyAction(state, "human", action), game)); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "That plan is no longer legal."); }
+  }
+
+  async function shareReplay() {
+    if (!game || game.phase !== "game-over") return;
+    setShareStatus("sharing");
+    try {
+      const response = await fetch("/api/replays", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state: game, share: true }) });
+      const data = await response.json() as { id?: string; error?: string };
+      if (!response.ok || !data.id) throw new Error(data.error || "Replay could not be created.");
+      setShareUrl(`${window.location.origin}/replay/${data.id}`); setShareStatus("");
+    } catch (reason) { setShareStatus(reason instanceof Error ? reason.message : "Replay could not be created."); }
+  }
+
+  if (!hydrated) return <main className="game-shell loading-shell"><LoaderCircle className="spin" /><span>Loading game engine…</span></main>;
+  if (!game) return <SetupScreen onStart={start} resumed={savedGame} onResume={() => savedGame && setGame(savedGame)} />;
+
+  const active = game.players.find((player) => player.id === actorId);
+  return <main className="game-shell active-game-shell">
+    <header className="game-topbar"><Link className="brand-lockup" href="/"><span className="brand-mark">J</span><span><strong>JEV / MONOPOLY</strong><small>LIVE TABLE</small></span></Link><div className="table-status"><span className={thinking ? "status-dot status-dot--live" : "status-dot"} />{thinking ? `${active?.name} thinking` : `Round ${game.round}`}<small>{game.mode === "short" ? "Short Game" : "Classic"}</small></div><nav><a href="/arena">Arena</a><a href="/benchmarks">Benchmarks</a><button type="button" onClick={() => { setSavedGame(game); setGame(null); setTradeOpen(false); }}>New game</button></nav></header>
+    <div className="mobile-gate"><ShieldAlert size={30} /><h1>Use a larger screen to continue</h1><p>Your game is safely saved on this device. Interactive play requires a tablet or desktop.</p><a href="/benchmarks">View agent benchmarks <ArrowRight size={15} /></a></div>
+    <div className="game-workspace game-desktop">
+      <div className="board-column"><GameBoard state={game} />{error ? <div className="game-error" role="alert"><ShieldAlert size={16} />{error}<button onClick={() => setError("")}><X size={15} /></button></div> : null}<div className="runtime-strip"><span><Activity size={14} />{game.jevCalls} live JEV calls</span><span><Bot size={14} />{game.fallbackDecisions} local decisions</span><span><Scale size={14} />Rules {game.rulesVersion}</span><span><WalletCards size={14} />Autosaved</span></div></div>
+      <aside className="game-sidebar"><DecisionPanel state={game} plans={plans} thinking={thinking} lastDecision={lastDecision} onPlan={applyHumanPlan} onOpenTrade={() => setTradeOpen(true)} onShare={shareReplay} shareUrl={shareUrl} shareStatus={shareStatus} /><Standings state={game} /><PropertyManager state={game} onAction={applyHumanAction} /><section className="game-card history-card"><div className="card-title"><History size={16} /><span>Action history</span><em>{game.events.length}</em></div><div className="history-list">{[...game.events].reverse().slice(0, 10).map((event) => <div key={event.sequence}><span>{String(event.sequence).padStart(3, "0")}</span><p><strong>{game.players.find((player) => player.id === event.actorId)?.name ?? event.actorId}</strong>{eventText(event)}</p></div>)}</div></section></aside>
+    </div>
+    {tradeOpen ? <TradeBuilder state={game} onAction={applyHumanAction} onClose={() => setTradeOpen(false)} /> : null}
+  </main>;
+}

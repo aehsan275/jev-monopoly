@@ -11,7 +11,11 @@
     "build": "node scripts/run-framework.mjs build",
     "start": "node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js dev --config dist/server/wrangler.json --local --persist-to .wrangler/state --ip 127.0.0.1 --inspector-port 0",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "test:rules": "node --experimental-strip-types --test tests/game.test.ts tests/monopoly-engine.test.ts",
+    "benchmark": "node --experimental-strip-types training/benchmark.ts",
+    "benchmark:gate": "node --experimental-strip-types training/benchmark.ts --games=10000 --mode=classic",
+    "train:jev": "node --experimental-strip-types training/label-jev.ts --calls=1000"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

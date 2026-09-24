@@ -1,5 +1,5 @@
-import Arena from "./arena";
+import PlayGame from "./play-game";
 
 export default function Home() {
-  return <Arena />;
+  return <PlayGame />;
 }

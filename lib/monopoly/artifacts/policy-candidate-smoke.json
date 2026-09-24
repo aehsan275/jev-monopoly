@@ -1,0 +1,125 @@
+{
+  "version": "candidate-2026-09-24",
+  "expertWeights": {
+    "builder": {
+      "bias": 0,
+      "cash": 0.25,
+      "netWorth": 0.6,
+      "propertyCount": 0.8,
+      "monopolies": 3.4,
+      "buildings": 3.2,
+      "mortgaged": -1.2,
+      "rentPower": 2.8,
+      "liquidityRisk": -1,
+      "opponentDenial": 1.2,
+      "tradeLeverage": 0.4,
+      "endTurn": -0.2,
+      "jailSafety": 0.1
+    },
+    "risk": {
+      "bias": 0,
+      "cash": 2.8,
+      "netWorth": 1,
+      "propertyCount": 0.35,
+      "monopolies": 1.5,
+      "buildings": 0.7,
+      "mortgaged": -2.3,
+      "rentPower": 1,
+      "liquidityRisk": -3.2,
+      "opponentDenial": 0.5,
+      "tradeLeverage": 0.3,
+      "endTurn": 0.5,
+      "jailSafety": 1.4
+    },
+    "dealmaker": {
+      "bias": 0,
+      "cash": 0.7,
+      "netWorth": 0.8,
+      "propertyCount": 0.9,
+      "monopolies": 2.9,
+      "buildings": 1.2,
+      "mortgaged": -1.1,
+      "rentPower": 1.5,
+      "liquidityRisk": -1.3,
+      "opponentDenial": 2.2,
+      "tradeLeverage": 3,
+      "endTurn": -0.3,
+      "jailSafety": 0.3
+    },
+    "balanced": {
+      "bias": 0,
+      "cash": 1.4,
+      "netWorth": 1.2,
+      "propertyCount": 0.8,
+      "monopolies": 2.4,
+      "buildings": 1.8,
+      "mortgaged": -1.5,
+      "rentPower": 1.9,
+      "liquidityRisk": -2,
+      "opponentDenial": 1.3,
+      "tradeLeverage": 1.1,
+      "endTurn": 0.15,
+      "jailSafety": 0.8
+    }
+  },
+  "routerWeights": {
+    "purchase": {
+      "builder": 0.25,
+      "risk": 0.15,
+      "dealmaker": 0.5,
+      "balanced": 0.1
+    },
+    "auction": {
+      "builder": 0.25,
+      "risk": 0.2,
+      "dealmaker": 0.5,
+      "balanced": 0.05
+    },
+    "building": {
+      "builder": 0.55,
+      "risk": 0.15,
+      "dealmaker": 0.25,
+      "balanced": 0.05
+    },
+    "mortgage": {
+      "builder": 0.1,
+      "risk": 0.55,
+      "dealmaker": 0.25,
+      "balanced": 0.1
+    },
+    "trade": {
+      "builder": 0.15,
+      "risk": 0.1,
+      "dealmaker": 0.7,
+      "balanced": 0.05
+    },
+    "jail": {
+      "builder": 0.1,
+      "risk": 0.5,
+      "dealmaker": 0.2,
+      "balanced": 0.2
+    },
+    "turn": {
+      "builder": 0.25,
+      "risk": 0.2,
+      "dealmaker": 0.45,
+      "balanced": 0.1
+    },
+    "debt": {
+      "builder": 0.1,
+      "risk": 0.55,
+      "dealmaker": 0.25,
+      "balanced": 0.1
+    }
+  },
+  "liveJevWeight": {
+    "purchase": 0.72,
+    "auction": 0.7,
+    "building": 0.68,
+    "mortgage": 0.65,
+    "trade": 0.74,
+    "jail": 0.7,
+    "turn": 0.62,
+    "debt": 0.66
+  }
+}

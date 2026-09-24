@@ -1,0 +1,1026 @@
+[
+  {
+    "seed": 730001,
+    "split": "validation",
+    "family": "purchase",
+    "actorId": "p1",
+    "entropy": 0.6921713506705705,
+    "novelty": "purchase:1:4:2:1:false",
+    "state": {
+      "schemaVersion": 2,
+      "rulesVersion": "uw-classic-2026.1",
+      "policyVersion": "experimental-0.2.0",
+      "id": "uwm-000b2391",
+      "mode": "classic",
+      "seed": 730001,
+      "rngState": 3530665631,
+      "rngCursor": 134,
+      "round": 12,
+      "phase": "purchase",
+      "players": [
+        {
+          "id": "p1",
+          "name": "Champion",
+          "token": "π",
+          "kind": "ai",
+          "policy": "champion",
+          "cash": 1477,
+          "position": 34,
+          "properties": [
+            24
+          ],
+          "inJail": false,
+          "jailTurns": 0,
+          "bankrupt": false,
+          "getOutCards": []
+        },
+        {
+          "id": "p2",
+          "name": "Builder",
+          "token": "▲",
+          "kind": "ai",
+          "policy": "builder",
+          "cash": 59,
+          "position": 15,
+          "properties": [
+            3,
+            9,
+            11,
+            13,
+            14,
+            16,
+            18,
+            35
+          ],
+          "inJail": false,
+          "jailTurns": 0,
+          "bankrupt": false,
+          "getOutCards": []
+        },
+        {
+          "id": "p3",
+          "name": "Risk",
+          "token": "◆",
+          "kind": "ai",
+          "policy": "risk",
+          "cash": 753,
+          "position": 24,
+          "properties": [
+            15,
+            23,
+            31
+          ],
+          "inJail": false,
+          "jailTurns": 0,
+          "bankrupt": false,
+          "getOutCards": []
+        },
+        {
+          "id": "p4",
+          "name": "Dealmaker",
+          "token": "●",
+          "kind": "ai",
+          "policy": "dealmaker",
+          "cash": 144,
+          "position": 26,
+          "properties": [
+            8,
+            26,
+            27,
+            28,
+            29,
+            37,
+            39
+          ],
+          "inJail": false,
+          "jailTurns": 0,
+          "bankrupt": false,
+          "getOutCards": [
+            "community"
+          ]
+        }
+      ],
+      "currentPlayerIndex": 0,
+      "deeds": {
+        "1": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "3": {
+          "ownerId": "p2",
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "5": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "6": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "8": {
+          "ownerId": "p4",
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "9": {
+          "ownerId": "p2",
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "11": {
+          "ownerId": "p2",
+          "buildings": 2,
+          "mortgaged": false
+        },
+        "12": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "13": {
+          "ownerId": "p2",
+          "buildings": 2,
+          "mortgaged": false
+        },
+        "14": {
+          "ownerId": "p2",
+          "buildings": 2,
+          "mortgaged": false
+        },
+        "15": {
+          "ownerId": "p3",
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "16": {
+          "ownerId": "p2",
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "18": {
+          "ownerId": "p2",
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "19": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "21": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "23": {
+          "ownerId": "p3",
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "24": {
+          "ownerId": "p1",
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "25": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "26": {
+          "ownerId": "p4",
+          "buildings": 1,
+          "mortgaged": false
+        },
+        "27": {
+          "ownerId": "p4",
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "28": {
+          "ownerId": "p4",
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "29": {
+          "ownerId": "p4",
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "31": {
+          "ownerId": "p3",
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "32": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "34": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "35": {
+          "ownerId": "p2",
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "37": {
+          "ownerId": "p4",
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "39": {
+          "ownerId": "p4",
+          "buildings": 0,
+          "mortgaged": false
+        }
+      },
+      "bank": {
+        "houses": 25,
+        "hotels": 12
+      },
+      "chance": {
+        "cards": [
+          "coop-dividend",
+          "general-repairs",
+          "trip-ion",
+          "back-three",
+          "go-jail",
+          "advance-start",
+          "advance-dp",
+          "jail-free",
+          "advance-al",
+          "nearest-transit-a",
+          "nearest-utility",
+          "club-chair",
+          "nearest-transit-b",
+          "research-grant",
+          "parking-fine",
+          "advance-ev3"
+        ]
+      },
+      "community": {
+        "cards": [
+          "street-repairs",
+          "design-prize",
+          "inheritance",
+          "insurance",
+          "birthday",
+          "consulting",
+          "go-jail",
+          "hospital",
+          "tax-refund",
+          "coop-bonus",
+          "bank-error",
+          "school-fee",
+          "health-fee",
+          "stock-sale",
+          "advance-start"
+        ]
+      },
+      "doublesInTurn": 0,
+      "extraRoll": false,
+      "lastRoll": [
+        6,
+        5
+      ],
+      "pendingPurchase": {
+        "playerId": "p1",
+        "spaceIndex": 34
+      },
+      "auction": null,
+      "pendingDebt": null,
+      "paymentQueue": [],
+      "pendingLandingAfterDebt": false,
+      "pendingTrade": null,
+      "bankruptcyAuctionQueue": [],
+      "bankruptcyResume": null,
+      "postDebtAction": null,
+      "winnerId": null,
+      "events": [
+        {
+          "sequence": 48,
+          "actorId": "p4",
+          "type": "roll",
+          "payload": {
+            "type": "roll"
+          },
+          "rngCursor": 124,
+          "stateHash": "6942df99",
+          "at": 49
+        },
+        {
+          "sequence": 48,
+          "actorId": "p4",
+          "type": "end-turn",
+          "payload": {
+            "type": "end-turn"
+          },
+          "rngCursor": 124,
+          "stateHash": "c9daf4d4",
+          "at": 49
+        },
+        {
+          "sequence": 48,
+          "actorId": "p1",
+          "type": "roll",
+          "payload": {
+            "type": "roll"
+          },
+          "rngCursor": 126,
+          "stateHash": "f0a0d085",
+          "at": 49
+        },
+        {
+          "sequence": 48,
+          "actorId": "p1",
+          "type": "end-turn",
+          "payload": {
+            "type": "end-turn"
+          },
+          "rngCursor": 126,
+          "stateHash": "c90a3006",
+          "at": 49
+        },
+        {
+          "sequence": 48,
+          "actorId": "p2",
+          "type": "roll",
+          "payload": {
+            "type": "roll"
+          },
+          "rngCursor": 128,
+          "stateHash": "41bc7e6d",
+          "at": 49
+        },
+        {
+          "sequence": 48,
+          "actorId": "p2",
+          "type": "end-turn",
+          "payload": {
+            "type": "end-turn"
+          },
+          "rngCursor": 128,
+          "stateHash": "0639374e",
+          "at": 49
+        },
+        {
+          "sequence": 48,
+          "actorId": "bank",
+          "type": "draw-card",
+          "payload": {
+            "playerId": "p3",
+            "deck": "chance",
+            "card": "advance-ev3",
+            "label": "Field study — advance to EV3."
+          },
+          "rngCursor": 130,
+          "stateHash": "c1ca03ec",
+          "at": 49
+        },
+        {
+          "sequence": 49,
+          "actorId": "p3",
+          "type": "roll",
+          "payload": {
+            "type": "roll"
+          },
+          "rngCursor": 130,
+          "stateHash": "c1ca03ec",
+          "at": 50
+        },
+        {
+          "sequence": 48,
+          "actorId": "p3",
+          "type": "end-turn",
+          "payload": {
+            "type": "end-turn"
+          },
+          "rngCursor": 130,
+          "stateHash": "387a5e9c",
+          "at": 49
+        },
+        {
+          "sequence": 48,
+          "actorId": "p4",
+          "type": "roll",
+          "payload": {
+            "type": "roll"
+          },
+          "rngCursor": 132,
+          "stateHash": "195f7553",
+          "at": 49
+        },
+        {
+          "sequence": 48,
+          "actorId": "p4",
+          "type": "end-turn",
+          "payload": {
+            "type": "end-turn"
+          },
+          "rngCursor": 132,
+          "stateHash": "5f0cbcd2",
+          "at": 49
+        },
+        {
+          "sequence": 48,
+          "actorId": "p1",
+          "type": "roll",
+          "payload": {
+            "type": "roll"
+          },
+          "rngCursor": 134,
+          "stateHash": "84ad5e04",
+          "at": 49
+        }
+      ],
+      "jevCalls": 0,
+      "fallbackDecisions": 0,
+      "telemetryEnabled": false,
+      "createdAt": 0,
+      "updatedAt": 49
+    },
+    "plans": [
+      {
+        "id": "purchase:buy",
+        "label": "Buy Davis Centre for $320",
+        "description": "Acquire the unowned deed at face value.",
+        "family": "purchase",
+        "actions": [
+          {
+            "type": "buy-property"
+          }
+        ]
+      },
+      {
+        "id": "purchase:auction",
+        "label": "Send to auction",
+        "description": "Decline the deed and open mandatory bidding to every solvent player.",
+        "family": "purchase",
+        "actions": [
+          {
+            "type": "decline-property"
+          }
+        ]
+      }
+    ],
+    "answers": {
+      "builder": {
+        "purchase:buy": 0.56,
+        "purchase:auction": 0.44
+      },
+      "risk": {
+        "purchase:buy": 0.52,
+        "purchase:auction": 0.48
+      },
+      "dealmaker": {
+        "purchase:buy": 0.51,
+        "purchase:auction": 0.49
+      },
+      "balanced": {
+        "purchase:buy": 0.77,
+        "purchase:auction": 0.23
+      }
+    },
+    "labelledAt": "2026-09-24T01:08:53.327Z"
+  },
+  {
+    "seed": 730001,
+    "split": "validation",
+    "family": "auction",
+    "actorId": "p2",
+    "entropy": 1.602926486368824,
+    "novelty": "auction:0:4:5:2:false",
+    "state": {
+      "schemaVersion": 2,
+      "rulesVersion": "uw-classic-2026.1",
+      "policyVersion": "experimental-0.2.0",
+      "id": "uwm-000b2391",
+      "mode": "classic",
+      "seed": 730001,
+      "rngState": 2134740727,
+      "rngCursor": 52,
+      "round": 2,
+      "phase": "auction",
+      "players": [
+        {
+          "id": "p1",
+          "name": "Champion",
+          "token": "π",
+          "kind": "ai",
+          "policy": "champion",
+          "cash": 1300,
+          "position": 4,
+          "properties": [],
+          "inJail": false,
+          "jailTurns": 0,
+          "bankrupt": false,
+          "getOutCards": []
+        },
+        {
+          "id": "p2",
+          "name": "Builder",
+          "token": "▲",
+          "kind": "ai",
+          "policy": "builder",
+          "cash": 1200,
+          "position": 18,
+          "properties": [
+            9,
+            18
+          ],
+          "inJail": false,
+          "jailTurns": 0,
+          "bankrupt": false,
+          "getOutCards": []
+        },
+        {
+          "id": "p3",
+          "name": "Risk",
+          "token": "◆",
+          "kind": "ai",
+          "policy": "risk",
+          "cash": 1080,
+          "position": 23,
+          "properties": [
+            15,
+            23
+          ],
+          "inJail": false,
+          "jailTurns": 0,
+          "bankrupt": false,
+          "getOutCards": []
+        },
+        {
+          "id": "p4",
+          "name": "Dealmaker",
+          "token": "●",
+          "kind": "ai",
+          "policy": "dealmaker",
+          "cash": 1400,
+          "position": 16,
+          "properties": [
+            8
+          ],
+          "inJail": false,
+          "jailTurns": 0,
+          "bankrupt": false,
+          "getOutCards": []
+        }
+      ],
+      "currentPlayerIndex": 3,
+      "deeds": {
+        "1": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "3": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "5": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "6": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "8": {
+          "ownerId": "p4",
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "9": {
+          "ownerId": "p2",
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "11": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "12": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "13": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "14": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "15": {
+          "ownerId": "p3",
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "16": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "18": {
+          "ownerId": "p2",
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "19": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "21": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "23": {
+          "ownerId": "p3",
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "24": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "25": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "26": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "27": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "28": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "29": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "31": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "32": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "34": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "35": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "37": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        },
+        "39": {
+          "ownerId": null,
+          "buildings": 0,
+          "mortgaged": false
+        }
+      },
+      "bank": {
+        "houses": 32,
+        "hotels": 12
+      },
+      "chance": {
+        "cards": [
+          "research-grant",
+          "parking-fine",
+          "advance-ev3",
+          "coop-dividend",
+          "general-repairs",
+          "trip-ion",
+          "back-three",
+          "go-jail",
+          "advance-start",
+          "advance-dp",
+          "jail-free",
+          "advance-al",
+          "nearest-transit-a",
+          "nearest-utility",
+          "club-chair",
+          "nearest-transit-b"
+        ]
+      },
+      "community": {
+        "cards": [
+          "stock-sale",
+          "jail-free",
+          "advance-start",
+          "street-repairs",
+          "design-prize",
+          "inheritance",
+          "insurance",
+          "birthday",
+          "consulting",
+          "go-jail",
+          "hospital",
+          "tax-refund",
+          "coop-bonus",
+          "bank-error",
+          "school-fee",
+          "health-fee"
+        ]
+      },
+      "doublesInTurn": 0,
+      "extraRoll": false,
+      "lastRoll": [
+        5,
+        3
+      ],
+      "pendingPurchase": null,
+      "auction": {
+        "spaceIndex": 16,
+        "activeBidderIds": [
+          "p2",
+          "p3",
+          "p4"
+        ],
+        "currentBidderId": "p2",
+        "highBidderId": null,
+        "highBid": 0,
+        "reason": "declined"
+      },
+      "pendingDebt": null,
+      "paymentQueue": [],
+      "pendingLandingAfterDebt": false,
+      "pendingTrade": null,
+      "bankruptcyAuctionQueue": [],
+      "bankruptcyResume": null,
+      "postDebtAction": null,
+      "winnerId": null,
+      "events": [
+        {
+          "sequence": 10,
+          "actorId": "p4",
+          "type": "end-turn",
+          "payload": {
+            "type": "end-turn"
+          },
+          "rngCursor": 44,
+          "stateHash": "6116688a",
+          "at": 11
+        },
+        {
+          "sequence": 11,
+          "actorId": "p1",
+          "type": "roll",
+          "payload": {
+            "type": "roll"
+          },
+          "rngCursor": 46,
+          "stateHash": "b1815191",
+          "at": 12
+        },
+        {
+          "sequence": 12,
+          "actorId": "p1",
+          "type": "end-turn",
+          "payload": {
+            "type": "end-turn"
+          },
+          "rngCursor": 46,
+          "stateHash": "e70e50df",
+          "at": 13
+        },
+        {
+          "sequence": 13,
+          "actorId": "p2",
+          "type": "roll",
+          "payload": {
+            "type": "roll"
+          },
+          "rngCursor": 48,
+          "stateHash": "6f3c4024",
+          "at": 14
+        },
+        {
+          "sequence": 14,
+          "actorId": "p2",
+          "type": "buy-property",
+          "payload": {
+            "type": "buy-property"
+          },
+          "rngCursor": 48,
+          "stateHash": "0b246811",
+          "at": 15
+        },
+        {
+          "sequence": 15,
+          "actorId": "p2",
+          "type": "end-turn",
+          "payload": {
+            "type": "end-turn"
+          },
+          "rngCursor": 48,
+          "stateHash": "c2aba69c",
+          "at": 16
+        },
+        {
+          "sequence": 16,
+          "actorId": "p3",
+          "type": "roll",
+          "payload": {
+            "type": "roll"
+          },
+          "rngCursor": 50,
+          "stateHash": "d7a132b5",
+          "at": 17
+        },
+        {
+          "sequence": 17,
+          "actorId": "p3",
+          "type": "buy-property",
+          "payload": {
+            "type": "buy-property"
+          },
+          "rngCursor": 50,
+          "stateHash": "b1b5f118",
+          "at": 18
+        },
+        {
+          "sequence": 18,
+          "actorId": "p3",
+          "type": "end-turn",
+          "payload": {
+            "type": "end-turn"
+          },
+          "rngCursor": 50,
+          "stateHash": "122e1802",
+          "at": 19
+        },
+        {
+          "sequence": 19,
+          "actorId": "p4",
+          "type": "roll",
+          "payload": {
+            "type": "roll"
+          },
+          "rngCursor": 52,
+          "stateHash": "08b83742",
+          "at": 20
+        },
+        {
+          "sequence": 20,
+          "actorId": "p4",
+          "type": "decline-property",
+          "payload": {
+            "type": "decline-property"
+          },
+          "rngCursor": 52,
+          "stateHash": "ea88f2e2",
+          "at": 21
+        },
+        {
+          "sequence": 21,
+          "actorId": "p1",
+          "type": "auction-pass",
+          "payload": {
+            "type": "auction-pass"
+          },
+          "rngCursor": 52,
+          "stateHash": "48b9c67e",
+          "at": 22
+        }
+      ],
+      "jevCalls": 0,
+      "fallbackDecisions": 0,
+      "telemetryEnabled": false,
+      "createdAt": 0,
+      "updatedAt": 22
+    },
+    "plans": [
+      {
+        "id": "auction:pass",
+        "label": "Pass",
+        "description": "Leave this auction permanently.",
+        "family": "auction",
+        "actions": [
+          {
+            "type": "auction-pass"
+          }
+        ]
+      },
+      {
+        "id": "auction:bid:1",
+        "label": "Bid $1",
+        "description": "Raise the current $0 bid.",
+        "family": "auction",
+        "actions": [
+          {
+            "type": "auction-bid",
+            "amount": 1
+          }
+        ]
+      },
+      {
+        "id": "auction:bid:108",
+        "label": "Bid $108",
+        "description": "Raise the current $0 bid.",
+        "family": "auction",
+        "actions": [
+          {
+            "type": "auction-bid",
+            "amount": 108
+          }
+        ]
+      },
+      {
+        "id": "auction:bid:180",
+        "label": "Bid $180",
+        "description": "Raise the current $0 bid.",
+        "family": "auction",
+        "actions": [
+          {
+            "type": "auction-bid",
+            "amount": 180
+          }
+        ]
+      },
+      {
+        "id": "auction:bid:225",
+        "label": "Bid $225",
+        "description": "Raise the current $0 bid.",
+        "family": "auction",
+        "actions": [
+          {
+            "type": "auction-bid",
+            "amount": 225
+          }
+        ]
+      }
+    ],
+    "answers": {
+      "builder": {
+        "auction:pass": 0.31,
+        "auction:bid:1": 0.26,
+        "auction:bid:108": 0.12,
+        "auction:bid:180": 0.16,
+        "auction:bid:225": 0.15
+      },
+      "risk": {
+        "auction:pass": 0.4,
+        "auction:bid:1": 0.22,
+        "auction:bid:108": 0.12,
+        "auction:bid:180": 0.11,
+        "auction:bid:225": 0.15
+      },
+      "dealmaker": {
+        "auction:pass": 0.44,
+        "auction:bid:1": 0.19,
+        "auction:bid:108": 0.14,
+        "auction:bid:180": 0.12,
+        "auction:bid:225": 0.11
+      },
+      "balanced": {
+        "auction:pass": 0.3400000000000001,
+        "auction:bid:1": 0.20000000000000004,
+        "auction:bid:108": 0.19000000000000003,
+        "auction:bid:180": 0.18000000000000002,
+        "auction:bid:225": 0.09000000000000001
+      }
+    },
+    "labelledAt": "2026-09-24T01:09:07.318Z"
+  }
+]
