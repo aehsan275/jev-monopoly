@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-html-link-for-pages -- Vinext's client Link interception prevents header navigation in the deployed Site. */
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   Activity, ArrowRight, Bot, BrainCircuit, Building2, ChevronDown,
   Clock3, Dice5, Eye, Gauge, HelpCircle, History, KeyRound, Landmark, LoaderCircle, Lock,
@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { BOARD, GROUP_COLORS, gridPosition } from "@/lib/game/board";
+import { jevCooldownSeconds } from "@/lib/jev-http";
 import { TITLE_DEEDS, deedFor } from "@/lib/monopoly/data";
 import { applyAction, assertStateIntegrity, createGame, currentPlayer, isLegalAction, netWorth, stateHash } from "@/lib/monopoly/engine";
 import { generateLegalPlans } from "@/lib/monopoly/plans";
@@ -35,6 +36,7 @@ interface LivePlanResponse {
   latencyMs: number;
   specialistProbabilities?: DecisionRecord["specialistProbabilities"];
   credentialSource?: "personal" | "owner-default";
+  retryAfterSeconds?: number;
   error?: string;
 }
 
@@ -195,7 +197,7 @@ function SetupScreen({ onStart, resumed, onResume, owner, onUnlock, onLock }: { 
         </div></fieldset>
         <details className="agent-access" open={owner.owner}><summary><KeyRound size={16} /><span>Agent access</span><em className={owner.owner ? "is-live" : ""}>{apiKey ? "Personal key" : owner.owner ? "Owner JEV ready" : "Local policy"}</em></summary><div>
           {owner.owner ? <div className="owner-ready"><span><strong>Owner access unlocked</strong><small>All three AI agents will use the protected default JEV key with immediate local fallback.</small></span><button type="button" onClick={() => void onLock()}><Lock size={14} /> Lock</button></div> : <div className="owner-unlock"><label className="field-label"><span>Owner access code</span><input type="password" autoComplete="off" value={ownerCode} onChange={(event) => setOwnerCode(event.target.value)} placeholder="Owner only" /></label><button type="button" disabled={unlocking || ownerCode.length < 16} onClick={async () => { setUnlocking(true); const message = await onUnlock(ownerCode); setOwnerMessage(message); setUnlocking(false); if (!message) setOwnerCode(""); }}>{unlocking ? "Unlocking…" : "Unlock owner JEV"}</button>{ownerMessage ? <small className="access-error" role="alert">{ownerMessage}</small> : null}</div>}
-          <label className="field-label"><span>Personal JevAI key <em>optional override</em></span><div className="key-field"><KeyRound size={16} /><input type="password" autoComplete="off" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="Use your own key for this browser session" /></div><small>Personal key takes priority. Live calls time out after eight seconds and fall back locally without retrying.</small></label>
+          <label className="field-label"><span>Personal JevAI key <em>optional override</em></span><div className="key-field"><KeyRound size={16} /><input type="password" autoComplete="off" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="Use your own key for this browser session" /></div><small>Personal key takes priority. Failed calls fall back locally; rate limits pause live requests for 30–60 seconds.</small></label>
         </div></details>
         <label className="check-row"><input type="checkbox" checked={telemetry} onChange={(event) => setTelemetry(event.target.checked)} /><span><strong>Share anonymous match events</strong><small>No key, account, stable device identifier, fingerprint, or free-form text.</small></span></label>
         <button className="start-button" type="submit"><Sparkles size={18} /> Start game <ArrowRight size={18} /></button>
@@ -258,7 +260,7 @@ function CardChecks({ cards, selected, onToggle }: { cards: Array<"chance" | "co
 function DecisionPanel({ state, plans, thinking, liveAccess, lastDecision, onPlan, onOpenTrade, onShare, shareUrl, shareStatus, speed, onSpeed, onStep }: { state: GameState; plans: LegalPlan[]; thinking: boolean; liveAccess: boolean; lastDecision: LastDecision | null; onPlan: (plan: LegalPlan) => void; onOpenTrade: () => void; onShare: () => void; shareUrl: string; shareStatus: string; speed: AiSpeed; onSpeed: (speed: AiSpeed) => void; onStep: () => void }) {
   const actorId = decisionActor(state); const actor = state.players.find((player) => player.id === actorId)!;
   const humanDecision = actorId === "human" && state.phase !== "game-over";
-  return <section className="game-card decision-card action-dock" aria-live="polite"><div className="decision-head"><span className="overline">{humanDecision ? "YOUR DECISION" : thinking ? liveAccess ? "ASKING JEV" : "LOCAL POLICY THINKING" : speed === "paused" && actor.kind === "ai" ? "AGENTS PAUSED" : "TABLE STATUS"}</span><h2>{state.phase === "game-over" ? `${state.players.find((player) => player.id === state.winnerId)?.name} wins` : phaseLabel(state)}</h2><p>{state.phase === "debt" ? `${actor.name} must raise $${state.pendingDebt?.amount}.` : state.phase === "auction" ? `${actor.name} acts next. High bid: $${state.auction?.highBid}.` : `${actor.name} acts now.`}</p></div>
+  return <section className="game-card decision-card" aria-live="polite"><div className="decision-head"><span className="overline">{humanDecision ? "YOUR DECISION" : thinking ? liveAccess ? "ASKING JEV" : "LOCAL POLICY THINKING" : speed === "paused" && actor.kind === "ai" ? "AGENTS PAUSED" : "TABLE STATUS"}</span><h2>{state.phase === "game-over" ? `${state.players.find((player) => player.id === state.winnerId)?.name} wins` : phaseLabel(state)}</h2><p>{state.phase === "debt" ? `${actor.name} must raise $${state.pendingDebt?.amount}.` : state.phase === "auction" ? `${actor.name} acts next. High bid: $${state.auction?.highBid}.` : `${actor.name} acts now.`}</p></div>
     <div className="pace-controls" aria-label="Agent playback speed"><button type="button" className={speed === "paused" ? "selected" : ""} onClick={() => onSpeed("paused")}><Pause size={14} /> Pause</button><button type="button" className={speed === "normal" ? "selected" : ""} onClick={() => onSpeed("normal")}><Play size={14} /> Normal</button><button type="button" className={speed === "fast" ? "selected" : ""} onClick={() => onSpeed("fast")}><Gauge size={14} /> Fast</button>{speed === "paused" && actor.kind === "ai" ? <button type="button" className="step-agent" onClick={onStep}>Step agent <ArrowRight size={14} /></button> : null}</div>
     {thinking ? <div className="thinking-line"><LoaderCircle className="spin" /><span><strong>{actor.name} is choosing</strong><small>Every option was generated and validated by the rules engine.</small></span></div> : null}
     {humanDecision ? <div className="plan-stack">{plans.map((plan) => <button type="button" key={plan.id} onClick={() => onPlan(plan)}><span><strong>{plan.label}</strong><small>{plan.description}</small></span><ArrowRight size={17} /></button>)}{state.phase === "manage" ? <button type="button" onClick={onOpenTrade}><span><strong>Build a custom trade</strong><small>Exchange cash, deeds, or amnesty cards with an opponent.</small></span><Users size={17} /></button> : null}</div> : null}
@@ -289,6 +291,7 @@ export default function PlayGame() {
   const [owner, setOwner] = useState<OwnerStatus>({ owner: false });
   const [speed, setSpeed] = useState<AiSpeed>(() => typeof window === "undefined" ? "normal" : (window.localStorage.getItem("uwm-ai-speed") as AiSpeed | null) ?? "normal");
   const [stepRequested, setStepRequested] = useState(false);
+  const liveCooldownUntil = useRef(0);
   useEffect(() => {
     queueMicrotask(() => {
       const serialized = window.localStorage.getItem(SAVE_KEY);
@@ -343,7 +346,9 @@ export default function PlayGame() {
       let record = chooseLocalPlan(captured, actor.id, candidates, actor.policy);
       let note = "Chosen by the trained local policy. This policy remains available if the live service is unavailable.";
       let usedLive = false;
-      if (apiKey || owner.owner) {
+      const liveCredentialAvailable = Boolean(apiKey || owner.owner);
+      const cooldownRemainingMs = Math.max(0, liveCooldownUntil.current - Date.now());
+      if (liveCredentialAvailable && cooldownRemainingMs === 0) {
         try {
           const response = await fetch("/api/jev/turn-plan", {
             method: "POST",
@@ -356,15 +361,24 @@ export default function PlayGame() {
               legalPlans: candidates.map(({ id, label, description }) => ({ id, label, description })),
             }),
           });
-          const live = await response.json() as LivePlanResponse;
+          const live = await response.json().catch(() => ({ error: "JEV returned unreadable data." })) as LivePlanResponse;
+          if (response.status === 429) {
+            const retryAfter = response.headers.get("retry-after") ?? (live.retryAfterSeconds ? String(live.retryAfterSeconds) : null);
+            const cooldownSeconds = jevCooldownSeconds(retryAfter);
+            liveCooldownUntil.current = Date.now() + cooldownSeconds * 1000;
+            throw new Error(`JEV rate-limited this key; live calls are paused for ${cooldownSeconds} seconds.`);
+          }
           if (!response.ok || live.error) throw new Error(live.error || "Live decision failed.");
           if (Object.keys(live.probabilities).some((id) => !candidates.some((plan) => plan.id === id))) throw new Error("JEV returned a stale plan.");
-          record = { ...blendWithLiveJev(record, live.probabilities, candidates[0].family), latencyMs: live.latencyMs, specialistProbabilities: live.specialistProbabilities };
+          liveCooldownUntil.current = 0;
+          record = { ...blendWithLiveJev(record, live.probabilities, candidates[0].family), latencyMs: live.latencyMs, specialistProbabilities: record.specialistProbabilities };
           note = `${live.credentialSource === "owner-default" ? "Owner-default" : "Personal-key"} JEV probabilities were calibrated with the local policy in ${live.latencyMs} ms.`;
           usedLive = true;
         } catch (reason) {
           note = `Local fallback used immediately: ${reason instanceof Error ? reason.message : "live decision unavailable"}`;
         }
+      } else if (liveCredentialAvailable) {
+        note = `Local fallback used while JEV cools down for ${Math.ceil(cooldownRemainingMs / 1000)} more seconds.`;
       }
       const selected = candidates.find((plan) => plan.id === record.planId) ?? candidates[0];
       setGame((current) => {
@@ -409,6 +423,7 @@ export default function PlayGame() {
     ];
     const seed = crypto.getRandomValues(new Uint32Array(1))[0] || 1;
     if (options.apiKey) window.sessionStorage.setItem("jev-api-key", options.apiKey); else window.sessionStorage.removeItem("jev-api-key");
+    liveCooldownUntil.current = 0;
     setApiKey(options.apiKey); setError(""); setLastDecision(null); setGame(createGame({ seed, mode: options.mode, players: specs, telemetryEnabled: options.telemetry }));
   }
 

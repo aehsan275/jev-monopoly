@@ -1,5 +1,5 @@
 {
-  "name": "site-creator-vinext-starter",
+  "name": "jev-monopoly",
   "version": "0.1.0",
   "private": true,
   "engines": {
@@ -7,12 +7,13 @@
   },
   "scripts": {
     "install:ci": "node scripts/install-ci.mjs",
-    "dev": "node scripts/run-framework.mjs dev",
-    "build": "node scripts/run-framework.mjs build",
+    "dev": "vinext dev --host 127.0.0.1 --port 5173 --strictPort",
+    "build": "vinext build",
     "start": "node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js dev --config dist/server/wrangler.json --local --persist-to .wrangler/state --ip 127.0.0.1 --inspector-port 0",
+    "setup:db": "node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_fancy_mongoose.sql",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
-    "test:rules": "node --experimental-strip-types --test tests/game.test.ts tests/monopoly-engine.test.ts tests/owner-session.test.ts",
+    "test:rules": "node --experimental-strip-types --test tests/game.test.ts tests/jev-http.test.ts tests/monopoly-engine.test.ts tests/owner-session.test.ts",
     "benchmark": "node --experimental-strip-types training/benchmark.ts",
     "benchmark:gate": "node --experimental-strip-types training/benchmark.ts --games=10000 --mode=classic",
     "train:jev": "node --experimental-strip-types training/label-jev.ts --calls=1000",

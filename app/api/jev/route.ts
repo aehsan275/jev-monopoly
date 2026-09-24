@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getScenario } from "@/lib/game/scenarios";
 import { combineDecisions, validateDecision } from "@/lib/game/policy";
 import type { AgentDecision, AgentId, JevGatewayResponse } from "@/lib/game/types";
+import { isJevTimeout, jevCooldownSeconds, jevFailureMetadata } from "@/lib/jev-http";
 
 export const runtime = "edge";
 
@@ -111,17 +112,28 @@ export async function POST(request: NextRequest) {
       signal: AbortSignal.timeout(20_000),
       cache: "no-store",
     });
-  } catch {
-    return NextResponse.json({ error: "JEV did not respond in time. Your key was not stored." }, { status: 504 });
+  } catch (error) {
+    const timedOut = isJevTimeout(error);
+    console.error("JEV arena request failed", { kind: timedOut ? "timeout" : "network", errorName: error && typeof error === "object" && "name" in error ? String(error.name) : undefined });
+    return NextResponse.json(
+      { error: timedOut ? "JEV did not respond in time. Your key was not stored." : "JEV could not be reached. Your key was not stored." },
+      { status: timedOut ? 504 : 502 },
+    );
   }
 
   if (!upstream.ok) {
+    const metadata = await jevFailureMetadata(upstream);
+    console.error("JEV upstream rejected an arena decision", metadata);
     const status = upstream.status === 401 ? 401 : upstream.status === 429 ? 429 : 502;
     const message = status === 401
       ? "The JevAI key was rejected."
       : status === 429
         ? "JEV is rate-limited. Try again shortly."
         : "JEV returned an invalid upstream response.";
+    if (status === 429) {
+      const retryAfter = jevCooldownSeconds(upstream.headers.get("retry-after"));
+      return NextResponse.json({ error: message, retryAfterSeconds: retryAfter }, { status, headers: { "Retry-After": String(retryAfter) } });
+    }
     return NextResponse.json({ error: message }, { status });
   }
 

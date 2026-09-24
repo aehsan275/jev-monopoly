@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { DEFAULT_POLICY_ARTIFACT } from "@/lib/monopoly/policy-model";
+import { isJevTimeout, jevCooldownSeconds, jevFailureMetadata } from "@/lib/jev-http";
 import { RULES_VERSION } from "@/lib/monopoly/types";
 import { defaultJevKey, OWNER_COOKIE, verifyOwnerSession } from "@/lib/owner-session";
 
@@ -52,39 +52,6 @@ function confidence(probabilities: Record<string, number>) {
   return Math.max(0, Math.min(1, 1 - entropy / Math.log(values.length)));
 }
 
-function combine(distributions: Record<SpecialistId, Record<string, number>>, family: keyof typeof DEFAULT_POLICY_ARTIFACT.routerWeights, publicState: Record<string, unknown>) {
-  const players = Array.isArray(publicState.players) ? publicState.players.filter((value): value is Record<string, unknown> => Boolean(value) && typeof value === "object") : [];
-  const actorId = typeof publicState.acting_player_id === "string" ? publicState.acting_player_id : "";
-  const actor = players.find((player) => player.id === actorId);
-  const actorWorth = Number(actor?.net_worth ?? 0);
-  const opponentWorth = Math.max(1, ...players.filter((player) => player.id !== actorId && !player.bankrupt).map((player) => Number(player.net_worth ?? 0)));
-  const bank = publicState.bank && typeof publicState.bank === "object" ? publicState.bank as Record<string, unknown> : {};
-  const context = {
-    gameStage: Math.min(1, Number(publicState.round ?? 0) / 35),
-    liquidityPressure: Number(actor?.cash ?? 0) < 180 ? 1 : Number(actor?.cash ?? 0) < 400 ? .5 : 0,
-    monopolyPressure: 0,
-    relativeNetWorth: Math.max(-1, Math.min(1, actorWorth / opponentWorth - 1)),
-    buildingScarcity: 1 - Math.min(1, Number(bank.houses ?? 32) / 16),
-  };
-  const logits = Object.fromEntries(specialistIds.map((specialist) => {
-    const base = Math.log(Math.max(DEFAULT_POLICY_ARTIFACT.routerWeights[family][specialist], 1e-5));
-    const contextual = DEFAULT_POLICY_ARTIFACT.routerContextWeights?.[specialist];
-    const adjustment = contextual ? Object.entries(context).reduce((sum, [name, value]) => sum + value * contextual[name as keyof typeof context], 0) : 0;
-    return [specialist, base + adjustment];
-  })) as Record<SpecialistId, number>;
-  const max = Math.max(...Object.values(logits));
-  const rawWeights = Object.fromEntries(specialistIds.map((specialist) => [specialist, Math.exp(logits[specialist] - max)])) as Record<SpecialistId, number>;
-  const weightTotal = Object.values(rawWeights).reduce((sum, value) => sum + value, 0);
-  const weights = Object.fromEntries(specialistIds.map((specialist) => [specialist, rawWeights[specialist] / weightTotal])) as Record<SpecialistId, number>;
-  const ids = Object.keys(distributions.builder);
-  const raw = Object.fromEntries(ids.map((id) => [id, Math.exp(specialistIds.reduce(
-    (sum, specialist) => sum + weights[specialist] * Math.log(Math.max(distributions[specialist][id], 1e-5)),
-    0,
-  ))]));
-  const total = Object.values(raw).reduce((sum, value) => sum + value, 0);
-  return Object.fromEntries(Object.entries(raw).map(([id, value]) => [id, value / total]));
-}
-
 export async function POST(request: NextRequest) {
   const personalKey = request.headers.get("x-jev-api-key")?.trim() ?? "";
   const ownerSession = personalKey ? null : await verifyOwnerSession(request.cookies.get(OWNER_COOKIE)?.value);
@@ -104,11 +71,10 @@ export async function POST(request: NextRequest) {
   }
 
   const criteria = Object.fromEntries(input.legalPlans.map((plan) => [plan.id, `${plan.label}. ${plan.description}`]));
-  const requestedSpecialists: SpecialistId[] = input.policyId === "champion" ? [...specialistIds] : [input.policyId];
-  const questions = Object.fromEntries(requestedSpecialists.map((specialist) => [
-    `${specialist}_plan`,
-    { type: "choice", instructions: instructions[specialist], criteria },
-  ]));
+  const liveSpecialist: SpecialistId = input.policyId === "champion" ? "balanced" : input.policyId;
+  const questions = {
+    live_plan: { type: "choice", instructions: instructions[liveSpecialist], criteria },
+  };
   const payload = {
     model: "typesafe-ai/jev",
     state: input.publicState,
@@ -129,12 +95,23 @@ export async function POST(request: NextRequest) {
       signal: AbortSignal.timeout(8_000),
       cache: "no-store",
     });
-  } catch {
-    return NextResponse.json({ error: "JEV timed out; use the local fallback for this decision." }, { status: 504 });
+  } catch (error) {
+    const timedOut = isJevTimeout(error);
+    console.error("JEV request failed", { kind: timedOut ? "timeout" : "network", errorName: error && typeof error === "object" && "name" in error ? String(error.name) : undefined });
+    return NextResponse.json(
+      { error: timedOut ? "JEV timed out; use the local fallback for this decision." : "JEV could not be reached; use the local fallback for this decision." },
+      { status: timedOut ? 504 : 502 },
+    );
   }
   if (!upstream.ok) {
+    const metadata = await jevFailureMetadata(upstream);
+    console.error("JEV upstream rejected a turn decision", metadata);
     const status = upstream.status === 401 ? 401 : upstream.status === 429 ? 429 : 502;
     const error = status === 401 ? "The JevAI key was rejected." : status === 429 ? "JEV quota or rate limit reached." : "JEV returned an upstream error.";
+    if (status === 429) {
+      const retryAfter = jevCooldownSeconds(upstream.headers.get("retry-after"));
+      return NextResponse.json({ error, retryAfterSeconds: retryAfter }, { status, headers: { "Retry-After": String(retryAfter) } });
+    }
     return NextResponse.json({ error }, { status });
   }
 
@@ -149,22 +126,14 @@ export async function POST(request: NextRequest) {
   }
 
   const legalIds = input.legalPlans.map((plan) => plan.id);
-  const distributions = {} as Record<SpecialistId, Record<string, number>>;
-  for (const specialist of requestedSpecialists) {
-    const probabilities = normalize(result.data.answers[`${specialist}_plan`] ?? {}, legalIds);
-    if (!probabilities) return NextResponse.json({ error: `JEV returned an invalid ${specialist} distribution.` }, { status: 502 });
-    distributions[specialist] = probabilities;
-  }
-  const probabilities = input.policyId === "champion"
-    ? combine(distributions, input.decisionType, input.publicState)
-    : distributions[input.policyId];
+  const probabilities = normalize(result.data.answers.live_plan ?? {}, legalIds);
+  if (!probabilities) return NextResponse.json({ error: "JEV returned an invalid action distribution." }, { status: 502 });
   const planId = Object.entries(probabilities).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
 
   return NextResponse.json({
     planId,
     probabilities,
     confidence: confidence(probabilities),
-    specialistProbabilities: input.policyId === "champion" ? distributions : undefined,
     latencyMs: Date.now() - startedAt,
     provider: "JevAI community gateway",
     model: result.data.model ?? "typesafe-ai/jev",
