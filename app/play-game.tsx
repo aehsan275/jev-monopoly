@@ -1,7 +1,7 @@
 "use client";
+/* eslint-disable @next/next/no-html-link-for-pages -- Vinext's client Link interception prevents header navigation in the deployed Site. */
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import Link from "next/link";
 import {
   Activity, ArrowRight, Bot, BrainCircuit, Building2, ChevronDown,
   Clock3, Dice5, Eye, Gauge, HelpCircle, History, KeyRound, Landmark, LoaderCircle, Lock,
@@ -160,7 +160,7 @@ function HowToPlay() {
 }
 
 export function GameNav({ subtitle = "WATERLOO STRATEGY LAB", onNewGame }: { subtitle?: string; onNewGame?: () => void }) {
-  return <header className="game-topbar"><Link className="brand-lockup" href="/"><span className="brand-mark">J</span><span><strong>JEV / MONOPOLY</strong><small>{subtitle}</small></span></Link><nav className="primary-nav"><Link className="nav-button nav-button--primary" href="/">Play</Link><Link className="nav-button" href="/arena">Decision arena</Link><Link className="nav-button" href="/benchmarks">Benchmarks</Link><HowToPlay />{onNewGame ? <button type="button" className="nav-button" onClick={onNewGame}>New game</button> : null}</nav></header>;
+  return <header className="game-topbar"><a className="brand-lockup" href="/"><span className="brand-mark">J</span><span><strong>JEV / MONOPOLY</strong><small>{subtitle}</small></span></a><nav className="primary-nav" aria-label="Main navigation"><a className="nav-button nav-button--primary" href="/">Play</a><a className="nav-button" href="/arena">Decision arena</a><a className="nav-button" href="/benchmarks">Benchmarks</a><HowToPlay />{onNewGame ? <button type="button" className="nav-button" onClick={onNewGame}>New game</button> : null}</nav></header>;
 }
 
 function SetupScreen({ onStart, resumed, onResume, owner, onUnlock, onLock }: { onStart: (options: { mode: "classic" | "short"; name: string; policies: [PolicyId, PolicyId]; telemetry: boolean; apiKey: string }) => void; resumed: GameState | null; onResume: () => void; owner: OwnerStatus; onUnlock: (code: string) => Promise<string>; onLock: () => Promise<void> }) {

@@ -1,7 +1,7 @@
 "use client";
+/* eslint-disable @next/next/no-html-link-for-pages -- Match the native route links used by the shared header. */
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { ArrowLeft, ChevronLeft, ChevronRight, LoaderCircle, Play, RotateCcw, ShieldAlert, Trophy } from "lucide-react";
 import { GameBoard, GameNav } from "@/app/play-game";
 import { applyAction, createGame, netWorth } from "@/lib/monopoly/engine";
@@ -33,7 +33,7 @@ export default function ReplayView({ id }: { id: string }) {
 
   const state = snapshots[step];
 
-  if (error) return <main className="replay-shell replay-message"><ShieldAlert /><h1>Replay unavailable</h1><p>{error}</p><Link href="/"><ArrowLeft size={15} /> Return to the game</Link></main>;
+  if (error) return <main className="replay-shell replay-message"><ShieldAlert /><h1>Replay unavailable</h1><p>{error}</p><a href="/"><ArrowLeft size={15} /> Return to the game</a></main>;
   if (!state) return <main className="replay-shell replay-message"><LoaderCircle className="spin" /><p>Rebuilding the deterministic match…</p></main>;
   const ranked = [...state.players].sort((a, b) => Number(a.bankrupt) - Number(b.bankrupt) || netWorth(state, b.id) - netWorth(state, a.id));
 
