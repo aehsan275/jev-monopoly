@@ -1,4 +1,4 @@
-export const GAME_SCHEMA_VERSION = 2;
+export const GAME_SCHEMA_VERSION = 3;
 export const RULES_VERSION = "uw-classic-2026.1";
 export const POLICY_VERSION = "experimental-0.2.0";
 
@@ -9,6 +9,7 @@ export type GamePhase =
   | "pre-roll"
   | "purchase"
   | "auction"
+  | "building-placement"
   | "debt"
   | "manage"
   | "trade-response"
@@ -54,6 +55,13 @@ export interface AuctionState {
   highBidderId: string | null;
   highBid: number;
   reason: "declined" | "bankruptcy" | "building-shortage";
+  buildingKind?: "house" | "hotel";
+}
+
+export interface PendingBuildingPlacement {
+  playerId: string;
+  buildingKind: "house" | "hotel";
+  auctionPrice: number;
 }
 
 export interface PendingDebt {
@@ -118,6 +126,7 @@ export interface GameState {
   lastRoll: [number, number] | null;
   pendingPurchase: PendingPurchase | null;
   auction: AuctionState | null;
+  pendingBuildingPlacement: PendingBuildingPlacement | null;
   pendingDebt: PendingDebt | null;
   paymentQueue: PendingPayment[];
   pendingLandingAfterDebt: boolean;
@@ -142,6 +151,8 @@ export type GameAction =
   | { type: "decline-property" }
   | { type: "auction-bid"; amount: number }
   | { type: "auction-pass" }
+  | { type: "request-building-auction"; buildingKind: "house" | "hotel" }
+  | { type: "place-auction-building"; spaceIndex: number }
   | { type: "build"; spaceIndex: number }
   | { type: "sell-building"; spaceIndex: number }
   | { type: "mortgage"; spaceIndex: number }

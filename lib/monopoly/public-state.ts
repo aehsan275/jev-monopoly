@@ -40,7 +40,9 @@ export function buildPublicDecisionState(state: GameState, actorId: string, plan
       high_bidder_id: state.auction.highBidderId,
       high_bid: state.auction.highBid,
       reason: state.auction.reason,
+      building_kind: state.auction.buildingKind,
     } : null,
+    pending_building_placement: state.pendingBuildingPlacement,
     debt: state.pendingDebt,
     trade: state.pendingTrade,
     legal_plans: plans.map((plan) => ({

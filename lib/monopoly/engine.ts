@@ -66,6 +66,7 @@ export function stateHash(state: GameState) {
     lastRoll: state.lastRoll,
     pendingPurchase: state.pendingPurchase,
     auction: state.auction,
+    pendingBuildingPlacement: state.pendingBuildingPlacement,
     pendingDebt: state.pendingDebt,
     paymentQueue: state.paymentQueue,
     pendingLandingAfterDebt: state.pendingLandingAfterDebt,
@@ -301,7 +302,8 @@ function resolveLanding(state: GameState, player: GamePlayer, specialRentMultipl
 }
 
 function startAuction(state: GameState, spaceIndex: number, reason: AuctionState["reason"]) {
-  const bidders = activePlayers(state).filter((player) => player.cash > 0).map((player) => player.id);
+  const buildingKind = reason === "building-shortage" ? buildingKindForTarget(state, spaceIndex) : undefined;
+  const bidders = activePlayers(state).filter((player) => player.cash > 0 && (!buildingKind || eligibleBuildingTargets(state, player.id, buildingKind).length > 0)).map((player) => player.id);
   if (!bidders.length) { finishAuction(state, null); return; }
   const startIndex = findNextPlayerIndex(state, state.currentPlayerIndex);
   const clockwise = [...state.players.slice(startIndex), ...state.players.slice(0, startIndex)]
@@ -314,6 +316,7 @@ function startAuction(state: GameState, spaceIndex: number, reason: AuctionState
     highBidderId: null,
     highBid: 0,
     reason,
+    buildingKind,
   };
   state.pendingPurchase = null;
   state.phase = "auction";
@@ -344,9 +347,13 @@ function finishAuction(state: GameState, winnerId: string | null) {
   if (winnerId) {
     const winner = getPlayer(state, winnerId);
     winner.cash -= auction.highBid;
-    state.deeds[auction.spaceIndex].ownerId = winnerId;
-    winner.properties.push(auction.spaceIndex);
-    winner.properties.sort((a, b) => a - b);
+    if (auction.reason === "building-shortage" && auction.buildingKind) {
+      state.pendingBuildingPlacement = { playerId: winnerId, buildingKind: auction.buildingKind, auctionPrice: auction.highBid };
+    } else {
+      state.deeds[auction.spaceIndex].ownerId = winnerId;
+      winner.properties.push(auction.spaceIndex);
+      winner.properties.sort((a, b) => a - b);
+    }
   }
   const reason = auction.reason;
   state.auction = null;
@@ -360,6 +367,8 @@ function finishAuction(state: GameState, winnerId: string | null) {
       state.phase = resume?.phase ?? "manage";
       processPayments(state, state.phase === "pre-roll" ? "pre-roll" : "manage");
     }
+  } else if (reason === "building-shortage" && state.pendingBuildingPlacement) {
+    state.phase = "building-placement";
   } else {
     state.phase = "manage";
   }
@@ -379,7 +388,11 @@ function groupHasBuildings(state: GameState, spaceIndex: number) {
   return groupFor(spaceIndex).some((index) => state.deeds[index].buildings > 0);
 }
 
-export function canBuild(state: GameState, playerId: string, spaceIndex: number) {
+function buildingKindForTarget(state: GameState, spaceIndex: number): "house" | "hotel" {
+  return state.deeds[spaceIndex].buildings === (state.mode === "short" ? 3 : 4) ? "hotel" : "house";
+}
+
+function canDevelopStructure(state: GameState, playerId: string, spaceIndex: number, kind?: "house" | "hotel") {
   const deed = deedFor(spaceIndex);
   const deedState = state.deeds[spaceIndex];
   if (!deed || deed.kind !== "property" || deedState.ownerId !== playerId || deedState.mortgaged || !ownsGroup(state, playerId, spaceIndex)) return false;
@@ -391,8 +404,26 @@ export function canBuild(state: GameState, playerId: string, spaceIndex: number)
   const comparable = group.map((index) => state.deeds[index].buildings === 5 ? hotelThreshold + 1 : state.deeds[index].buildings);
   const normalizedCurrent = current === 5 ? hotelThreshold + 1 : current;
   if (normalizedCurrent !== Math.min(...comparable)) return false;
-  if (current === hotelThreshold) return group.every((index) => state.deeds[index].buildings >= hotelThreshold) && state.bank.hotels > 0;
-  return current < hotelThreshold && state.bank.houses > 0;
+  if (current === hotelThreshold) return (!kind || kind === "hotel") && group.every((index) => state.deeds[index].buildings >= hotelThreshold);
+  return (!kind || kind === "house") && current < hotelThreshold;
+}
+
+export function eligibleBuildingTargets(state: GameState, playerId: string, kind: "house" | "hotel") {
+  return getPlayer(state, playerId).properties.filter((index) => canDevelopStructure(state, playerId, index, kind));
+}
+
+function buildingShortage(state: GameState, kind: "house" | "hotel") {
+  const available = kind === "house" ? state.bank.houses : state.bank.hotels;
+  if (available <= 0) return false;
+  const demanders = activePlayers(state).filter((player) => player.cash > 0 && eligibleBuildingTargets(state, player.id, kind).length > 0).length;
+  return demanders > available;
+}
+
+export function canBuild(state: GameState, playerId: string, spaceIndex: number) {
+  if (!canDevelopStructure(state, playerId, spaceIndex)) return false;
+  const kind = buildingKindForTarget(state, spaceIndex);
+  const available = kind === "house" ? state.bank.houses : state.bank.hotels;
+  return available > 0 && !buildingShortage(state, kind);
 }
 
 export function canSellBuilding(state: GameState, playerId: string, spaceIndex: number) {
@@ -567,6 +598,11 @@ export function isLegalAction(state: GameState, actorId: string, action: GameAct
     if (action.type === "auction-pass") return true;
     return action.type === "auction-bid" && Number.isInteger(action.amount) && action.amount > state.auction.highBid && action.amount <= actor.cash;
   }
+  if (state.phase === "building-placement") {
+    return action.type === "place-auction-building"
+      && state.pendingBuildingPlacement?.playerId === actorId
+      && canDevelopStructure(state, actorId, action.spaceIndex, state.pendingBuildingPlacement.buildingKind);
+  }
   if (state.phase === "trade-response") {
     if (state.pendingTrade?.toId !== actorId) return false;
     if (action.type === "accept-trade" || action.type === "reject-trade") return true;
@@ -597,6 +633,10 @@ export function isLegalAction(state: GameState, actorId: string, action: GameAct
   if (state.phase === "manage") {
     if (action.type === "end-turn") return true;
     if (action.type === "build") return canBuild(state, actorId, action.spaceIndex) && actor.cash >= deedFor(action.spaceIndex).houseCost!;
+    if (action.type === "request-building-auction") {
+      const available = action.buildingKind === "house" ? state.bank.houses : state.bank.hotels;
+      return available > 0 && buildingShortage(state, action.buildingKind) && eligibleBuildingTargets(state, actorId, action.buildingKind).length > 0;
+    }
     if (action.type === "sell-building") return canSellBuilding(state, actorId, action.spaceIndex);
     if (action.type === "mortgage") return ownsDeed(state, actorId, action.spaceIndex) && !state.deeds[action.spaceIndex].mortgaged && !groupHasBuildings(state, action.spaceIndex);
     if (action.type === "unmortgage") return ownsDeed(state, actorId, action.spaceIndex) && state.deeds[action.spaceIndex].mortgaged && actor.cash >= Math.ceil(deedFor(action.spaceIndex).mortgage * 1.1);
@@ -641,7 +681,7 @@ function executeRoll(state: GameState, player: GamePlayer) {
   resolveLanding(state, player);
 }
 
-function applyBuilding(state: GameState, player: GamePlayer, index: number, selling: boolean) {
+function applyBuilding(state: GameState, player: GamePlayer, index: number, selling: boolean, prepaid = false) {
   const deed = deedFor(index);
   const deedState = state.deeds[index];
   const hotelThreshold = state.mode === "short" ? 3 : 4;
@@ -656,7 +696,7 @@ function applyBuilding(state: GameState, player: GamePlayer, index: number, sell
       state.bank.houses += 1;
     }
   } else {
-    player.cash -= deed.houseCost!;
+    if (!prepaid) player.cash -= deed.houseCost!;
     if (deedState.buildings === hotelThreshold) {
       deedState.buildings = 5;
       state.bank.hotels -= 1;
@@ -672,6 +712,7 @@ export function applyAction(input: GameState, actorId: string, action: GameActio
   if (!isLegalAction(input, actorId, action)) throw new Error(`Illegal action ${action.type} by ${actorId} during ${input.phase}.`);
   const state = structuredClone(input) as GameState;
   const actor = getPlayer(state, actorId);
+  const purchaseIndex = action.type === "buy-property" ? state.pendingPurchase?.spaceIndex : undefined;
 
   switch (action.type) {
     case "roll": executeRoll(state, actor); break;
@@ -695,6 +736,12 @@ export function applyAction(input: GameState, actorId: string, action: GameActio
       state.auction!.highBid = action.amount; state.auction!.highBidderId = actor.id; nextAuctionBidder(state); break;
     case "auction-pass":
       state.auction!.activeBidderIds = state.auction!.activeBidderIds.filter((id) => id !== actor.id); nextAuctionBidder(state); break;
+    case "request-building-auction": {
+      const target = eligibleBuildingTargets(state, actor.id, action.buildingKind)[0];
+      startAuction(state, target, "building-shortage"); break;
+    }
+    case "place-auction-building":
+      applyBuilding(state, actor, action.spaceIndex, false, true); state.pendingBuildingPlacement = null; state.phase = "manage"; break;
     case "build": applyBuilding(state, actor, action.spaceIndex, false); break;
     case "sell-building": applyBuilding(state, actor, action.spaceIndex, true); settleDebtIfPossible(state); break;
     case "mortgage": actor.cash += deedFor(action.spaceIndex).mortgage; state.deeds[action.spaceIndex].mortgaged = true; settleDebtIfPossible(state); break;
@@ -714,7 +761,18 @@ export function applyAction(input: GameState, actorId: string, action: GameActio
       else advanceToNextActivePlayer(state);
       break;
   }
-  addEvent(state, actorId, action.type, action as unknown as Record<string, unknown>);
+  const payload = { ...action } as unknown as Record<string, unknown>;
+  if (action.type === "roll") {
+    payload.dice = state.lastRoll;
+    payload.destination = actor.position;
+    payload.destinationName = BOARD[actor.position].name;
+  }
+  if (action.type === "buy-property" && purchaseIndex !== undefined) {
+    payload.spaceIndex = purchaseIndex;
+    payload.name = deedFor(purchaseIndex).name;
+    payload.price = deedFor(purchaseIndex).price;
+  }
+  addEvent(state, actorId, action.type, payload);
   assertStateIntegrity(state);
   return state;
 }
@@ -752,6 +810,7 @@ export function createGame(options: CreateGameOptions): GameState {
     lastRoll: null,
     pendingPurchase: null,
     auction: null,
+    pendingBuildingPlacement: null,
     pendingDebt: null,
     paymentQueue: [],
     pendingLandingAfterDebt: false,

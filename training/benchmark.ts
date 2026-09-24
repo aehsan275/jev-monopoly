@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { applyAction, createGame, currentPlayer, getPlayer, netWorth } from "../lib/monopoly/engine.ts";
@@ -81,6 +81,7 @@ function actorId(state: GameState) {
   if (state.phase === "auction") return state.auction!.currentBidderId;
   if (state.phase === "trade-response") return state.pendingTrade!.toId;
   if (state.phase === "debt") return state.pendingDebt!.debtorId;
+  if (state.phase === "building-placement") return state.pendingBuildingPlacement!.playerId;
   return currentPlayer(state).id;
 }
 
@@ -162,13 +163,14 @@ function summarize(policy: CandidatePolicy, results: MatchResult[]): CandidateRe
   };
 }
 
-export function runBenchmark(options: { gamesPerCandidate: number; seedStart: number; mode: GameMode; output?: string; maxActions?: number }) {
+export function runBenchmark(options: { gamesPerCandidate: number; seedStart: number; mode: GameMode; output?: string; maxActions?: number; artifact?: PolicyArtifact; externalLabelsUsed?: number }) {
+  const candidateArtifact = options.artifact ?? DEFAULT_POLICY_ARTIFACT;
   const candidates: CandidatePolicy[] = ["champion", "builder", "risk", "dealmaker", "balanced"];
   const summaries = candidates.map((policy) => {
     const results: MatchResult[] = [];
     for (let game = 0; game < options.gamesPerCandidate; game += 1) {
       const seat = game % 4;
-      results.push(runMatch(options.seedStart + game, options.mode, policy, seat, DEFAULT_POLICY_ARTIFACT, options.maxActions ?? 6_000));
+      results.push(runMatch(options.seedStart + game, options.mode, policy, seat, candidateArtifact, options.maxActions ?? 6_000));
     }
     console.error(`benchmarked ${policy}: ${results.length} matches`);
     return summarize(policy, results);
@@ -186,7 +188,7 @@ export function runBenchmark(options: { gamesPerCandidate: number; seedStart: nu
   const passed = Object.values(checks).every(Boolean);
   const artifact: BenchmarkArtifact = {
     generatedAt: new Date().toISOString(), status: passed ? "promoted" : "experimental",
-    rulesVersion: RULES_VERSION, policyVersion: POLICY_VERSION, mode: options.mode,
+    rulesVersion: RULES_VERSION, policyVersion: candidateArtifact.version || POLICY_VERSION, mode: options.mode,
     requestedGamesPerCandidate: options.gamesPerCandidate, totalMatches: options.gamesPerCandidate * summaries.length,
     seedStart: options.seedStart, competitors: ["candidate", ...baselineRoles], champion, specialists,
     promotionGate: {
@@ -194,10 +196,10 @@ export function runBenchmark(options: { gamesPerCandidate: number; seedStart: nu
       observed: { strongestSpecialistWinRate, winRateMargin: champion.winRate - strongestSpecialistWinRate }, checks, passed,
     },
     manifest: {
-      artifact: DEFAULT_POLICY_ARTIFACT.version,
+      artifact: candidateArtifact.version,
       router: "contextual geometric mixture of four specialist softmax policies",
-      externalLabelsUsed: 0,
-      note: "Pre-release local benchmark. The 1,000-state JEV label collection and 10,000-match promotion tournament have not completed.",
+      externalLabelsUsed: options.externalLabelsUsed ?? 0,
+      note: passed ? "Promotion gate passed with the saved candidate artifact." : "Candidate remains experimental because every promotion check has not passed.",
     },
   };
   if (options.output) { const path = resolve(options.output); mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, `${JSON.stringify(artifact, null, 2)}\n`); }
@@ -205,12 +207,18 @@ export function runBenchmark(options: { gamesPerCandidate: number; seedStart: nu
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  const artifactPath = parseArg("artifact", "");
+  const candidateArtifact = artifactPath && existsSync(resolve(artifactPath))
+    ? JSON.parse(readFileSync(resolve(artifactPath), "utf8")) as PolicyArtifact
+    : DEFAULT_POLICY_ARTIFACT;
   const artifact = runBenchmark({
     gamesPerCandidate: Math.max(1, Number.parseInt(parseArg("games", "40"), 10)),
     seedStart: Number.parseInt(parseArg("seed", "240901"), 10),
     mode: parseArg("mode", "short") === "classic" ? "classic" : "short",
     output: parseArg("output", "lib/monopoly/artifacts/benchmark.json"),
     maxActions: Math.max(100, Number.parseInt(parseArg("max-actions", "6000"), 10)),
+    artifact: candidateArtifact,
+    externalLabelsUsed: Math.max(0, Number.parseInt(parseArg("external-labels", "0"), 10)),
   });
   console.log(JSON.stringify({ status: artifact.status, totalMatches: artifact.totalMatches, champion: artifact.champion, gate: artifact.promotionGate }, null, 2));
 }

@@ -45,3 +45,7 @@ next-env.d.ts
 /.codex/
 /outputs/
 /work/
+# Resumable training work products stay local until a candidate passes promotion.
+/training/checkpoints/jev-labels.json
+/lib/monopoly/artifacts/policy-candidate.json
+/lib/monopoly/artifacts/policy-refined.json

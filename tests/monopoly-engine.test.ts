@@ -106,6 +106,35 @@ test("houses must be built and sold evenly", () => {
   assert.equal(isLegalAction(state, "human", { type: "sell-building", spaceIndex: 1 }), true);
 });
 
+test("a building shortage auctions the final house and conserves inventory", () => {
+  let state = game();
+  makeCurrent(state, "human");
+  state.phase = "manage";
+  own(state, "human", [1, 3]);
+  own(state, "champion", [6, 8, 9]);
+  own(state, "builder", [11, 13, 14, 21, 23, 24]);
+  own(state, "risk", [16, 18, 19]);
+  for (const index of [11, 13, 14, 16, 18, 19]) state.deeds[index].buildings = 4;
+  state.deeds[21].buildings = 3;
+  state.deeds[23].buildings = 2;
+  state.deeds[24].buildings = 2;
+  state.bank.houses = 1;
+  assert.equal(assertStateIntegrity(state), true);
+  assert.equal(isLegalAction(state, "human", { type: "build", spaceIndex: 1 }), false);
+  state = applyAction(state, "human", { type: "request-building-auction", buildingKind: "house" });
+  assert.equal(state.auction?.currentBidderId, "champion");
+  state = applyAction(state, "champion", { type: "auction-bid", amount: 51 });
+  state = applyAction(state, "builder", { type: "auction-pass" });
+  state = applyAction(state, "human", { type: "auction-pass" });
+  assert.equal(state.phase, "building-placement");
+  assert.equal(state.pendingBuildingPlacement?.playerId, "champion");
+  state = applyAction(state, "champion", { type: "place-auction-building", spaceIndex: 6 });
+  assert.equal(state.bank.houses, 0);
+  assert.equal(state.deeds[6].buildings, 1);
+  assert.equal(state.players[1].cash, 1449);
+  assert.equal(assertStateIntegrity(state), true);
+});
+
 test("an improved color group cannot be mortgaged", () => {
   let state = game();
   makeCurrent(state, "human");

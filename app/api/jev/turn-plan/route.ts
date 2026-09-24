@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { DEFAULT_POLICY_ARTIFACT } from "@/lib/monopoly/policy-model";
 import { RULES_VERSION } from "@/lib/monopoly/types";
+import { defaultJevKey, OWNER_COOKIE, verifyOwnerSession } from "@/lib/owner-session";
 
 export const runtime = "edge";
 
@@ -51,8 +52,30 @@ function confidence(probabilities: Record<string, number>) {
   return Math.max(0, Math.min(1, 1 - entropy / Math.log(values.length)));
 }
 
-function combine(distributions: Record<SpecialistId, Record<string, number>>, family: keyof typeof DEFAULT_POLICY_ARTIFACT.routerWeights) {
-  const weights = DEFAULT_POLICY_ARTIFACT.routerWeights[family];
+function combine(distributions: Record<SpecialistId, Record<string, number>>, family: keyof typeof DEFAULT_POLICY_ARTIFACT.routerWeights, publicState: Record<string, unknown>) {
+  const players = Array.isArray(publicState.players) ? publicState.players.filter((value): value is Record<string, unknown> => Boolean(value) && typeof value === "object") : [];
+  const actorId = typeof publicState.acting_player_id === "string" ? publicState.acting_player_id : "";
+  const actor = players.find((player) => player.id === actorId);
+  const actorWorth = Number(actor?.net_worth ?? 0);
+  const opponentWorth = Math.max(1, ...players.filter((player) => player.id !== actorId && !player.bankrupt).map((player) => Number(player.net_worth ?? 0)));
+  const bank = publicState.bank && typeof publicState.bank === "object" ? publicState.bank as Record<string, unknown> : {};
+  const context = {
+    gameStage: Math.min(1, Number(publicState.round ?? 0) / 35),
+    liquidityPressure: Number(actor?.cash ?? 0) < 180 ? 1 : Number(actor?.cash ?? 0) < 400 ? .5 : 0,
+    monopolyPressure: 0,
+    relativeNetWorth: Math.max(-1, Math.min(1, actorWorth / opponentWorth - 1)),
+    buildingScarcity: 1 - Math.min(1, Number(bank.houses ?? 32) / 16),
+  };
+  const logits = Object.fromEntries(specialistIds.map((specialist) => {
+    const base = Math.log(Math.max(DEFAULT_POLICY_ARTIFACT.routerWeights[family][specialist], 1e-5));
+    const contextual = DEFAULT_POLICY_ARTIFACT.routerContextWeights?.[specialist];
+    const adjustment = contextual ? Object.entries(context).reduce((sum, [name, value]) => sum + value * contextual[name as keyof typeof context], 0) : 0;
+    return [specialist, base + adjustment];
+  })) as Record<SpecialistId, number>;
+  const max = Math.max(...Object.values(logits));
+  const rawWeights = Object.fromEntries(specialistIds.map((specialist) => [specialist, Math.exp(logits[specialist] - max)])) as Record<SpecialistId, number>;
+  const weightTotal = Object.values(rawWeights).reduce((sum, value) => sum + value, 0);
+  const weights = Object.fromEntries(specialistIds.map((specialist) => [specialist, rawWeights[specialist] / weightTotal])) as Record<SpecialistId, number>;
   const ids = Object.keys(distributions.builder);
   const raw = Object.fromEntries(ids.map((id) => [id, Math.exp(specialistIds.reduce(
     (sum, specialist) => sum + weights[specialist] * Math.log(Math.max(distributions[specialist][id], 1e-5)),
@@ -63,8 +86,11 @@ function combine(distributions: Record<SpecialistId, Record<string, number>>, fa
 }
 
 export async function POST(request: NextRequest) {
-  const key = request.headers.get("x-jev-api-key")?.trim();
-  if (!key) return NextResponse.json({ error: "A JevAI API key is required." }, { status: 401 });
+  const personalKey = request.headers.get("x-jev-api-key")?.trim() ?? "";
+  const ownerSession = personalKey ? null : await verifyOwnerSession(request.cookies.get(OWNER_COOKIE)?.value);
+  const key = personalKey || (ownerSession ? defaultJevKey() : "");
+  const credentialSource = personalKey ? "personal" as const : "owner-default" as const;
+  if (!key) return NextResponse.json({ error: "Live JEV access is not enabled." }, { status: 401 });
   if (key.length > 256) return NextResponse.json({ error: "Invalid credential format." }, { status: 400 });
 
   let input: z.infer<typeof requestSchema>;
@@ -130,7 +156,7 @@ export async function POST(request: NextRequest) {
     distributions[specialist] = probabilities;
   }
   const probabilities = input.policyId === "champion"
-    ? combine(distributions, input.decisionType)
+    ? combine(distributions, input.decisionType, input.publicState)
     : distributions[input.policyId];
   const planId = Object.entries(probabilities).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
 
@@ -142,5 +168,6 @@ export async function POST(request: NextRequest) {
     latencyMs: Date.now() - startedAt,
     provider: "JevAI community gateway",
     model: result.data.model ?? "typesafe-ai/jev",
+    credentialSource,
   }, { headers: { "Cache-Control": "no-store" } });
 }

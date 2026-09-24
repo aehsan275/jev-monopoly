@@ -57,6 +57,8 @@ export function simulateGame(options: SimulationOptions): SimulationResult {
           ? state.pendingTrade!.toId
           : state.phase === "debt"
             ? state.pendingDebt!.debtorId
+            : state.phase === "building-placement"
+              ? state.pendingBuildingPlacement!.playerId
             : currentPlayer(state).id;
       const actor = getPlayer(state, actorId);
       const plans = generateLegalPlans(state, actorId);

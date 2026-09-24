@@ -60,17 +60,26 @@ export function generateLegalPlans(state: GameState, actorId: string): LegalPlan
   if (state.phase === "auction" && state.auction?.currentBidderId === actorId) {
     plans.push(plan("auction:pass", "Pass", "Leave this auction permanently.", "auction", { type: "auction-pass" }));
     const deed = deedFor(state.auction.spaceIndex);
+    const referencePrice = state.auction.reason === "building-shortage" ? (deed.houseCost ?? deed.price) : deed.price;
     const minimum = state.auction.highBid + 1;
     const candidates = new Set([
       minimum,
-      Math.min(actor.cash, Math.max(minimum, Math.floor(deed.price * 0.6))),
-      Math.min(actor.cash, Math.max(minimum, deed.price)),
-      Math.min(actor.cash, Math.max(minimum, Math.floor(deed.price * 1.25))),
+      Math.min(actor.cash, Math.max(minimum, Math.floor(referencePrice * 0.6))),
+      Math.min(actor.cash, Math.max(minimum, referencePrice)),
+      Math.min(actor.cash, Math.max(minimum, Math.floor(referencePrice * 1.25))),
     ]);
     for (const amount of candidates) {
       if (amount >= minimum && amount <= actor.cash) plans.push(plan(`auction:bid:${amount}`, `Bid $${amount}`, `Raise the current $${state.auction.highBid} bid.`, "auction", { type: "auction-bid", amount }));
     }
     return plans.filter((candidate) => legal(state, actorId, candidate));
+  }
+
+  if (state.phase === "building-placement" && state.pendingBuildingPlacement?.playerId === actorId) {
+    for (const index of actor.properties) {
+      const candidate = plan(`building-place:${index}`, `Place ${state.pendingBuildingPlacement.buildingKind} on ${deedFor(index).name}`, `Use the building won for $${state.pendingBuildingPlacement.auctionPrice}.`, "building", { type: "place-auction-building", spaceIndex: index });
+      if (legal(state, actorId, candidate)) plans.push(candidate);
+    }
+    return plans;
   }
 
   if (state.phase === "debt" && state.pendingDebt?.debtorId === actorId) {
@@ -98,6 +107,7 @@ export function generateLegalPlans(state: GameState, actorId: string): LegalPlan
       const payoff = Math.ceil(deed.mortgage * 1.1);
       if (state.deeds[index].mortgaged && actor.cash >= payoff) plans.push(plan(`unmortgage:${index}`, `Unmortgage ${deed.name}`, `Pay $${payoff} to restore rent and building eligibility.`, "mortgage", { type: "unmortgage", spaceIndex: index }));
     }
+    for (const buildingKind of ["house", "hotel"] as const) plans.push(plan(`building-auction:${buildingKind}`, `Auction the last ${buildingKind}`, `Building demand exceeds the bank supply, so the remaining ${buildingKind} must be auctioned.`, "building", { type: "request-building-auction", buildingKind }));
     const turnEvents = [...state.events].reverse().slice(0, state.events.length - Math.max(-1, state.events.map((event) => event.actorId === actorId && event.type === "roll").lastIndexOf(true)));
     const alreadyNegotiated = turnEvents.some((event) => event.actorId === actorId && event.type === "propose-trade");
     if (!alreadyNegotiated) plans.push(...tradeCandidates(state, actorId));
@@ -115,6 +125,8 @@ export function actionLabel(action: GameAction) {
     case "mortgage": return `Mortgage ${deedFor(action.spaceIndex).name}`;
     case "unmortgage": return `Unmortgage ${deedFor(action.spaceIndex).name}`;
     case "auction-bid": return `Bid $${action.amount}`;
+    case "request-building-auction": return `Auction a ${action.buildingKind}`;
+    case "place-auction-building": return `Place building on ${deedFor(action.spaceIndex).name}`;
     default: return action.type.replaceAll("-", " ");
   }
 }

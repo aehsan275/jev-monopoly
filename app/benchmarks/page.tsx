@@ -1,13 +1,13 @@
-import { ArrowLeft, Check, CircleAlert, Scale, ShieldCheck, Trophy, X } from "lucide-react";
-import Link from "next/link";
+import { Check, CircleAlert, Scale, ShieldCheck, Trophy, X } from "lucide-react";
 import benchmark from "@/lib/monopoly/artifacts/benchmark.json";
+import { GameNav } from "@/app/play-game";
 
 const percent = (value: number) => `${(value * 100).toFixed(1)}%`;
 
 export default function BenchmarksPage() {
   const champion = benchmark.champion;
   const checks = benchmark.promotionGate.checks;
-  return <main className="report-shell"><header className="game-topbar"><Link className="brand-lockup" href="/"><span className="brand-mark">J</span><span><strong>JEV / MONOPOLY</strong><small>QUALITY REPORT</small></span></Link><div className="table-status"><span className="status-dot" />Experimental<small>Policy {benchmark.policyVersion}</small></div><nav><Link href="/"><ArrowLeft size={14} /> Play</Link><a href="/arena">Arena</a><a href="/privacy">Privacy</a></nav></header>
+  return <main className="report-shell"><GameNav subtitle={`QUALITY REPORT · ${benchmark.policyVersion}`} />
     <section className="report-hero"><div><span className="overline">PUBLIC AGENT REPORT</span><h1>The Champion has<br />not earned the title yet.</h1><p>The latest seat-rotated calibration found a {percent(champion.winRate)} win rate. The confidence interval is wide, the strongest specialist tied the Champion, and the policy therefore remains explicitly experimental.</p></div><div className="score-card"><span>CALIBRATION WIN RATE</span><strong>{percent(champion.winRate)}</strong><small>95% CI · {percent(champion.confidence95[0])}–{percent(champion.confidence95[1])}</small><i style={{ width: percent(champion.winRate) }} /></div></section>
     <section className="report-grid"><article className="report-card"><div className="report-title"><Trophy /><span>Measured field</span></div><dl><div><dt>Matches</dt><dd>{benchmark.totalMatches}</dd></div><div><dt>Champion completions</dt><dd>{champion.completed}/{champion.games}</dd></div><div><dt>Illegal actions</dt><dd>{champion.illegalActions}</dd></div><div><dt>Average actions</dt><dd>{Math.round(champion.averageActions).toLocaleString()}</dd></div><div><dt>Seat spread</dt><dd>{percent(champion.seatSpread)}</dd></div><div><dt>Rules</dt><dd>{benchmark.rulesVersion}</dd></div></dl></article>
       <article className="report-card"><div className="report-title"><Scale /><span>Promotion gate</span></div><div className="gate-list">{Object.entries({ "10,000 validation matches": checks.validationVolume, "Zero illegal actions": checks.zeroIllegalActions, "Win rate above 35%": checks.minimumWinRate, "Five-point specialist margin": checks.specialistMargin, "Seat spread at most 3%": checks.seatBalance, "Every match completes": checks.completeMatches }).map(([label, passed]) => <div key={label} className={passed ? "pass" : "fail"}>{passed ? <Check /> : <X />}<span>{label}</span><strong>{passed ? "PASS" : "NOT YET"}</strong></div>)}</div></article>

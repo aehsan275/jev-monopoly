@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type CSSProperties } from "react";
-import { Activity, ArrowRight, BrainCircuit, Check, Clock3, KeyRound, LoaderCircle, RotateCcw, ShieldCheck, Sparkles, Trophy } from "lucide-react";
+import { Activity, ArrowRight, BrainCircuit, Check, KeyRound, LoaderCircle, RotateCcw, ShieldCheck, Sparkles, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,6 +9,7 @@ import { BOARD, GROUP_COLORS, gridPosition } from "@/lib/game/board";
 import { AGENTS, combineDecisions } from "@/lib/game/policy";
 import { SCENARIOS } from "@/lib/game/scenarios";
 import type { AgentDecision, AgentId, BoardSpace, PlayerState, PropertyState } from "@/lib/game/types";
+import { GameNav } from "@/app/play-game";
 
 type Decisions = Record<AgentId, AgentDecision>;
 interface LiveResponse { decisions: Decisions; champion: AgentDecision; latencyMs: number; error?: string }
@@ -111,11 +112,7 @@ export default function Arena() {
   }
 
   return <main className="arena-shell">
-    <header className="topbar">
-      <div className="brand-lockup"><span className="brand-mark">J</span><span><strong>JEV / MONOPOLY</strong><small>WATERLOO STRATEGY LAB</small></span></div>
-      <div className="run-state"><span className={mode === "live" ? "status-dot status-dot--live" : "status-dot"} /><span>{mode === "live" ? "LIVE JEV RUN" : "RECORDED JEV RUN"}</span>{latency ? <small><Clock3 size={12} /> {latency}ms</small> : null}</div>
-      <a className="method-link" href="#method">How it works <ArrowRight size={14} /></a>
-    </header>
+    <GameNav subtitle={mode === "live" ? `LIVE ARENA${latency ? ` · ${latency}MS` : ""}` : "DECISION ARENA"} />
 
     <section className="scenario-strip" aria-label="Showcase scenarios"><span className="scenario-label">DECISION TESTS</span><Tabs value={scenario.id} onValueChange={(value) => selectScenario(SCENARIOS.findIndex((item) => item.id === value))}><TabsList className="scenario-tabs">{SCENARIOS.map((item, index) => <TabsTrigger key={item.id} value={item.id} className="scenario-tab"><span>{String(index + 1).padStart(2, "0")}</span>{item.family}</TabsTrigger>)}</TabsList></Tabs></section>
 

@@ -1,5 +1,5 @@
 import { GROUPS, deedFor } from "./data.ts";
-import { applyAction, getPlayer, netWorth, ownsGroup } from "./engine.ts";
+import { applyAction, eligibleBuildingTargets, getPlayer, netWorth, ownsGroup } from "./engine.ts";
 import type { DecisionRecord, GameState, LegalPlan, PolicyId } from "./types.ts";
 
 export type FeatureName =
@@ -17,16 +17,21 @@ export type FeatureName =
   | "endTurn"
   | "jailSafety";
 
+export type RouterFeatureName = "gameStage" | "liquidityPressure" | "monopolyPressure" | "relativeNetWorth" | "buildingScarcity";
+
 export interface PolicyArtifact {
+  artifactSchemaVersion?: 1 | 2;
   version: string;
   expertWeights: Record<Exclude<PolicyId, "human" | "champion">, Record<FeatureName, number>>;
   routerWeights: Record<LegalPlan["family"], Record<Exclude<PolicyId, "human" | "champion">, number>>;
+  routerContextWeights?: Record<Exclude<PolicyId, "human" | "champion">, Record<RouterFeatureName, number>>;
   liveJevWeight: Record<LegalPlan["family"], number>;
 }
 
 const specialistIds: Array<Exclude<PolicyId, "human" | "champion">> = ["builder", "risk", "dealmaker", "balanced"];
 
 export const DEFAULT_POLICY_ARTIFACT: PolicyArtifact = {
+  artifactSchemaVersion: 2,
   version: "experimental-0.2.0",
   expertWeights: {
     builder: { bias: 0, cash: .25, netWorth: .6, propertyCount: .8, monopolies: 3.4, buildings: 3.2, mortgaged: -1.2, rentPower: 2.8, liquidityRisk: -1, opponentDenial: 1.2, tradeLeverage: .4, endTurn: -.2, jailSafety: .1 },
@@ -43,6 +48,12 @@ export const DEFAULT_POLICY_ARTIFACT: PolicyArtifact = {
     jail: { builder: .1, risk: .5, dealmaker: .2, balanced: .2 },
     turn: { builder: .25, risk: .2, dealmaker: .45, balanced: .1 },
     debt: { builder: .1, risk: .55, dealmaker: .25, balanced: .1 },
+  },
+  routerContextWeights: {
+    builder: { gameStage: 0, liquidityPressure: 0, monopolyPressure: 0, relativeNetWorth: 0, buildingScarcity: 0 },
+    risk: { gameStage: 0, liquidityPressure: 0, monopolyPressure: 0, relativeNetWorth: 0, buildingScarcity: 0 },
+    dealmaker: { gameStage: 0, liquidityPressure: 0, monopolyPressure: 0, relativeNetWorth: 0, buildingScarcity: 0 },
+    balanced: { gameStage: 0, liquidityPressure: 0, monopolyPressure: 0, relativeNetWorth: 0, buildingScarcity: 0 },
   },
   liveJevWeight: { purchase: .72, auction: .7, building: .68, mortgage: .65, trade: .74, jail: .7, turn: .62, debt: .66 },
 };
@@ -69,6 +80,17 @@ function planResult(state: GameState, playerId: string, plan: LegalPlan) {
       const next = structuredClone(state);
       const player = getPlayer(next, playerId);
       player.cash -= auctionBid.amount;
+      if (next.auction!.reason === "building-shortage" && next.auction!.buildingKind) {
+        const kind = next.auction!.buildingKind;
+        const target = eligibleBuildingTargets(next, playerId, kind)[0];
+        if (target !== undefined) {
+          if (kind === "house") { next.deeds[target].buildings += 1; next.bank.houses -= 1; }
+          else { next.deeds[target].buildings = 5; next.bank.hotels -= 1; next.bank.houses += 4; }
+        }
+        next.auction = null;
+        next.phase = "manage";
+        return next;
+      }
       next.deeds[next.auction!.spaceIndex].ownerId = playerId;
       player.properties.push(next.auction!.spaceIndex);
       player.properties.sort((a, b) => a - b);
@@ -97,7 +119,7 @@ export function extractFeatures(state: GameState, playerId: string, plan: LegalP
   const buildingAfter = after.properties.reduce((sum, index) => sum + next.deeds[index].buildings, 0);
   const mortgagedAfter = after.properties.filter((index) => next.deeds[index].mortgaged).length;
   const cashRatio = after.cash / 1500;
-  const purchaseIndex = plan.actions.find((action) => action.type === "buy-property" || action.type === "auction-bid");
+  const purchaseIndex = plan.actions.find((action) => action.type === "buy-property" || (action.type === "auction-bid" && state.auction?.reason !== "building-shortage"));
   let denial = 0;
   const purchaseSpace = state.pendingPurchase?.spaceIndex ?? state.auction?.spaceIndex;
   if (purchaseIndex && purchaseSpace !== undefined) {
@@ -138,6 +160,18 @@ export function policyProbabilities(state: GameState, playerId: string, plans: L
   return softmax(scores);
 }
 
+export function routerContextFeatures(state: GameState, playerId: string): Record<RouterFeatureName, number> {
+  const actor = getPlayer(state, playerId);
+  const opponentWorth = Math.max(...state.players.filter((player) => player.id !== playerId && !player.bankrupt).map((player) => netWorth(state, player.id)), 1);
+  return {
+    gameStage: Math.min(1, state.round / 35),
+    liquidityPressure: actor.cash < 180 ? 1 : actor.cash < 400 ? .5 : 0,
+    monopolyPressure: Math.min(1, countMonopolies(state, playerId) + state.players.filter((player) => player.id !== playerId && !player.bankrupt).reduce((sum, player) => sum + Object.values(GROUPS).filter((group) => group.filter((index) => state.deeds[index].ownerId === player.id).length === group.length - 1).length, 0) / 3),
+    relativeNetWorth: Math.max(-1, Math.min(1, netWorth(state, playerId) / opponentWorth - 1)),
+    buildingScarcity: 1 - Math.min(1, state.bank.houses / 16),
+  };
+}
+
 function confidence(probabilities: Record<string, number>) {
   const values = Object.values(probabilities);
   if (values.length <= 1) return 1;
@@ -148,9 +182,19 @@ function confidence(probabilities: Record<string, number>) {
 export function championProbabilities(state: GameState, playerId: string, plans: LegalPlan[], artifact = DEFAULT_POLICY_ARTIFACT) {
   const family = plans[0]?.family ?? "turn";
   const distributions = Object.fromEntries(specialistIds.map((id) => [id, policyProbabilities(state, playerId, plans, id, artifact)])) as Record<typeof specialistIds[number], Record<string, number>>;
+  const context = routerContextFeatures(state, playerId);
+  const logits = Object.fromEntries(specialistIds.map((id) => {
+    const base = Math.log(Math.max(artifact.routerWeights[family][id], 1e-5));
+    const weights = artifact.routerContextWeights?.[id];
+    return [id, base + (weights ? (Object.keys(context) as RouterFeatureName[]).reduce((sum, name) => sum + context[name] * weights[name], 0) : 0)];
+  })) as Record<typeof specialistIds[number], number>;
+  const maxLogit = Math.max(...Object.values(logits));
+  const routerRaw = Object.fromEntries(specialistIds.map((id) => [id, Math.exp(logits[id] - maxLogit)])) as Record<typeof specialistIds[number], number>;
+  const routerTotal = Object.values(routerRaw).reduce((sum, value) => sum + value, 0);
+  const router = Object.fromEntries(specialistIds.map((id) => [id, routerRaw[id] / routerTotal])) as Record<typeof specialistIds[number], number>;
   const raw: Record<string, number> = {};
   for (const plan of plans) {
-    raw[plan.id] = Math.exp(specialistIds.reduce((sum, id) => sum + artifact.routerWeights[family][id] * Math.log(Math.max(distributions[id][plan.id], 1e-5)), 0));
+    raw[plan.id] = Math.exp(specialistIds.reduce((sum, id) => sum + router[id] * Math.log(Math.max(distributions[id][plan.id], 1e-5)), 0));
   }
   const total = Object.values(raw).reduce((sum, value) => sum + value, 0);
   return { probabilities: Object.fromEntries(Object.entries(raw).map(([id, value]) => [id, value / total])), specialists: distributions };
