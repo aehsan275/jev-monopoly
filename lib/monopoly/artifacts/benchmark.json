@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-09-24T01:08:09.253Z",
+  "generatedAt": "2026-09-24T02:08:07.865Z",
   "status": "experimental",
   "rulesVersion": "uw-classic-2026.1",
   "policyVersion": "experimental-0.2.0",
   "mode": "short",
-  "requestedGamesPerCandidate": 12,
-  "totalMatches": 60,
+  "requestedGamesPerCandidate": 40,
+  "totalMatches": 200,
   "seedStart": 240901,
   "competitors": [
     "candidate",
@@ -15,84 +15,84 @@
   ],
   "champion": {
     "policy": "champion",
-    "games": 12,
-    "completed": 12,
-    "wins": 5,
-    "winRate": 0.4166666666666667,
+    "games": 40,
+    "completed": 40,
+    "wins": 19,
+    "winRate": 0.475,
     "confidence95": [
-      0.19325746190524654,
-      0.6804926643446272
+      0.32935229550181694,
+      0.6250289314607027
     ],
     "finishDistribution": {
-      "1": 5,
-      "2": 4,
-      "3": 1,
-      "4": 2
+      "1": 19,
+      "2": 12,
+      "3": 2,
+      "4": 7
     },
     "seatWinRates": [
-      0.3333333333333333,
-      0,
-      0.6666666666666666,
-      0.6666666666666666
+      0.5,
+      0.4,
+      0.5,
+      0.5
     ],
-    "seatSpread": 0.6666666666666666,
-    "averageActions": 807.6666666666666,
+    "seatSpread": 0.09999999999999998,
+    "averageActions": 807.325,
     "illegalActions": 0,
     "pairwiseElo": {
-      "random-legal": 120,
-      "greedy-development": 58,
-      "liquidity-conservative": 191
+      "random-legal": 191,
+      "greedy-development": 17,
+      "liquidity-conservative": 241
     },
     "failures": []
   },
   "specialists": [
     {
       "policy": "builder",
-      "games": 12,
-      "completed": 12,
-      "wins": 5,
-      "winRate": 0.4166666666666667,
+      "games": 40,
+      "completed": 40,
+      "wins": 15,
+      "winRate": 0.375,
       "confidence95": [
-        0.19325746190524654,
-        0.6804926643446272
+        0.2422277353579172,
+        0.529678399454681
       ],
       "finishDistribution": {
-        "1": 5,
-        "2": 4,
-        "3": 1,
-        "4": 2
+        "1": 15,
+        "2": 11,
+        "3": 7,
+        "4": 7
       },
       "seatWinRates": [
-        0.3333333333333333,
-        0.3333333333333333,
-        0.3333333333333333,
-        0.6666666666666666
+        0.5,
+        0.2,
+        0.4,
+        0.4
       ],
-      "seatSpread": 0.3333333333333333,
-      "averageActions": 1171.6666666666667,
+      "seatSpread": 0.3,
+      "averageActions": 1236.825,
       "illegalActions": 0,
       "pairwiseElo": {
-        "random-legal": 280,
-        "greedy-development": -58,
+        "random-legal": 108,
+        "greedy-development": -35,
         "liquidity-conservative": 191
       },
       "failures": []
     },
     {
       "policy": "risk",
-      "games": 12,
-      "completed": 12,
+      "games": 40,
+      "completed": 40,
       "wins": 0,
       "winRate": 0,
       "confidence95": [
         0,
-        0.2425007574992425
+        0.08762453925039232
       ],
       "finishDistribution": {
         "1": 0,
-        "2": 4,
-        "3": 5,
-        "4": 3
+        "2": 13,
+        "3": 14,
+        "4": 13
       },
       "seatWinRates": [
         0,
@@ -101,76 +101,76 @@
         0
       ],
       "seatSpread": 0,
-      "averageActions": 697.0833333333334,
+      "averageActions": 793.7,
       "illegalActions": 0,
       "pairwiseElo": {
-        "random-legal": -58,
-        "greedy-development": -417,
-        "liquidity-conservative": 58
+        "random-legal": -89,
+        "greedy-development": -382,
+        "liquidity-conservative": 17
       },
       "failures": []
     },
     {
       "policy": "dealmaker",
-      "games": 12,
-      "completed": 12,
-      "wins": 5,
-      "winRate": 0.4166666666666667,
+      "games": 40,
+      "completed": 40,
+      "wins": 19,
+      "winRate": 0.475,
       "confidence95": [
-        0.19325746190524654,
-        0.6804926643446272
+        0.32935229550181694,
+        0.6250289314607027
       ],
       "finishDistribution": {
-        "1": 5,
-        "2": 4,
-        "3": 2,
-        "4": 1
+        "1": 19,
+        "2": 12,
+        "3": 4,
+        "4": 5
       },
       "seatWinRates": [
-        0.3333333333333333,
-        0,
-        0.3333333333333333,
-        1
+        0.4,
+        0.3,
+        0.4,
+        0.8
       ],
-      "seatSpread": 1,
-      "averageActions": 887.6666666666666,
+      "seatSpread": 0.5,
+      "averageActions": 976.375,
       "illegalActions": 0,
       "pairwiseElo": {
-        "random-legal": 58,
-        "greedy-development": 120,
-        "liquidity-conservative": 280
+        "random-legal": 108,
+        "greedy-development": 108,
+        "liquidity-conservative": 269
       },
       "failures": []
     },
     {
       "policy": "balanced",
-      "games": 12,
-      "completed": 12,
-      "wins": 4,
-      "winRate": 0.3333333333333333,
+      "games": 40,
+      "completed": 40,
+      "wins": 16,
+      "winRate": 0.4,
       "confidence95": [
-        0.13811783989736134,
-        0.609382412602386
+        0.26348110612401365,
+        0.5540438017260649
       ],
       "finishDistribution": {
-        "1": 4,
-        "2": 5,
-        "3": 3,
-        "4": 0
+        "1": 16,
+        "2": 17,
+        "3": 5,
+        "4": 2
       },
       "seatWinRates": [
-        0,
-        0.3333333333333333,
-        0.6666666666666666,
-        0.3333333333333333
+        0.3,
+        0.4,
+        0.6,
+        0.3
       ],
-      "seatSpread": 0.6666666666666666,
-      "averageActions": 757.5833333333334,
+      "seatSpread": 0.3,
+      "averageActions": 779.225,
       "illegalActions": 0,
       "pairwiseElo": {
-        "random-legal": 120,
-        "greedy-development": 0,
-        "liquidity-conservative": 417
+        "random-legal": 215,
+        "greedy-development": 17,
+        "liquidity-conservative": 338
       },
       "failures": []
     }
@@ -184,7 +184,7 @@
       "validationMatches": 10000
     },
     "observed": {
-      "strongestSpecialistWinRate": 0.4166666666666667,
+      "strongestSpecialistWinRate": 0.475,
       "winRateMargin": 0
     },
     "checks": {
@@ -201,6 +201,6 @@
     "artifact": "experimental-0.2.0",
     "router": "contextual geometric mixture of four specialist softmax policies",
     "externalLabelsUsed": 0,
-    "note": "Pre-release local benchmark. The 1,000-state JEV label collection and 10,000-match promotion tournament have not completed."
+    "note": "Candidate remains experimental because every promotion check has not passed."
   }
 }
